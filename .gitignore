@@ -1,0 +1,297 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Project specific
+# Environment variables and secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+log/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Export files
+exports/
+*.csv
+*.xlsx
+*.json
+
+# Crypto payment files
+crypto_payments/
+payment_logs/
+
+# Webhook server
+webhook_logs/
+webhook_temp/
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+*.lnk
+
+# Linux
+*~
+
+# Telegram bot specific
+# Bot session files
+*.session
+*.session-journal
+
+# Bot configuration backups
+config_backup/
+settings_backup/
+
+# User data exports
+user_exports/
+data_exports/
+
+# Payment processing
+payment_cache/
+transaction_logs/
+
+# Webhook certificates
+*.pem
+*.key
+*.crt
+
+# Rate limiting cache
+rate_limit_cache/
+
+# Analytics cache
+analytics_cache/
+
+# Scheduled tasks
+scheduler_cache/
+task_queue/
+
+# Media files
+media/
+uploads/
+images/
+videos/
+audio/
+
+# Test files
+test_data/
+test_logs/
+test_exports/
+
+# Development tools
+.dev/
+dev_tools/
+debug_logs/
+
+# Production backups
+prod_backup/
+backup/
+
+# Monitoring
+monitoring/
+health_checks/
+
+# API keys and tokens (additional patterns)
+*_token*
+*_key*
+*_secret*
+*_password*
+*_credential*
+
+# Database dumps
+*.dump
+*.sql
+*.mongodb
+
+# Cache directories
+.cache/
+cache/
+__pycache__/
+
+# Temporary uploads
+temp_uploads/
+upload_cache/
+
+# Error logs
+error_logs/
+crash_logs/
+
+# Performance monitoring
+perf_logs/
+metrics_cache/
+
+# Security
+security_logs/
+access_logs/
+
+# SSL certificates
+ssl/
+certificates/

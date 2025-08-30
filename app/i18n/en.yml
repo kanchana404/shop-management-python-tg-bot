@@ -1,0 +1,96 @@
+# English translations
+start:
+  welcome: "🛍️ Welcome to our shop! Choose an option below:"
+  order_products: "🛒 Order Products"
+  check_stock: "📦 Check Stock"
+  support: "💬 Support"
+  deposit_crypto: "💰 Deposit via Crypto"
+  language: "🌐 Language"
+  my_cart: "🛍️ My Cart"
+
+location:
+  choose_city: "📍 Choose your city:"
+  choose_area: "🏘️ Choose your area:"
+  belgrade: "Belgrade"
+  novi_sad: "Novi Sad"
+  pancevo: "Pančevo"
+
+products:
+  title: "🛒 Available Products"
+  no_products: "❌ No products available in this area"
+  price: "💰 Price"
+  quantity: "📦 Quantity"
+  description: "📝 Description"
+  add_to_cart: "➕ Add to Cart"
+  out_of_stock: "❌ Out of Stock"
+  low_stock: "⚠️ Low Stock"
+
+cart:
+  title: "🛍️ My Cart"
+  empty: "🛍️ Your cart is empty"
+  balance: "💰 Balance"
+  total: "💵 Total"
+  items: "📦 Items"
+  checkout: "✅ Checkout"
+  item_added: "✅ Item added to cart"
+  item_removed: "🗑️ Item removed from cart"
+  insufficient_balance: "❌ Insufficient balance"
+  checkout_success: "✅ Order placed successfully!"
+
+support:
+  message: "💬 For support, please contact: {handle}"
+  default_handle: "@grofshop"
+
+deposit:
+  choose_amount: "💰 Enter deposit amount in EUR:"
+  choose_coin: "🪙 Choose cryptocurrency:"
+  address: "📍 Deposit Address"
+  amount: "💰 Amount"
+  expires: "⏱️ Expires"
+  pending: "⏳ Deposit pending confirmation..."
+  confirmed: "✅ Deposit confirmed!"
+  failed: "❌ Deposit failed"
+  expired: "⏰ Deposit expired"
+
+language:
+  choose: "🌐 Choose your language:"
+  english: "🇺🇸 English"
+  serbian: "🇷🇸 Serbian"
+  russian: "🇷🇺 Russian"
+  changed: "✅ Language changed successfully!"
+
+admin:
+  panel: "🔧 Admin Panel"
+  products: "🛒 Products"
+  orders: "📋 Orders"
+  users: "👥 Users"
+  settings: "⚙️ Settings"
+  announcements: "📢 Announcements"
+  metrics: "📊 Metrics"
+  unauthorized: "❌ Unauthorized access"
+
+crypto:
+  choose_asset: "💳 Choose cryptocurrency for deposit:"
+  enter_amount: "💰 Enter amount for {asset} deposit:"
+  deposit_success: "✅ Deposit successful!"
+  payment_success: "✅ Payment successful!"
+  balance_title: "💰 Crypto Balance"
+  rates_title: "📊 Exchange Rates"
+  invoice_created: "💳 Payment invoice created"
+  payment_pending: "⏳ Payment pending"
+  payment_expired: "⏰ Payment expired"
+
+common:
+  back: "⬅️ Back"
+  cancel: "❌ Cancel"
+  confirm: "✅ Confirm"
+  edit: "✏️ Edit"
+  delete: "🗑️ Delete"
+  save: "💾 Save"
+  next: "➡️ Next"
+  previous: "⬅️ Previous"
+  loading: "⏳ Loading..."
+  error: "❌ An error occurred"
+  success: "✅ Success!"
+  page: "Page {current} of {total}"
+
