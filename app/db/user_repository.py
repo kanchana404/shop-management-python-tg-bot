@@ -30,7 +30,8 @@ class UserRepository(BaseRepository[User]):
     
     async def update_user(self, tg_id: int, update_data: UserUpdate) -> Optional[User]:
         """Update user by Telegram ID."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$set": update_data.dict(exclude_unset=True)}
         )
@@ -41,7 +42,8 @@ class UserRepository(BaseRepository[User]):
     
     async def update_balance(self, tg_id: int, amount: float) -> Optional[User]:
         """Update user balance."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$inc": {"balance": amount}, "$set": {"updated_at": self._utcnow()}}
         )
@@ -52,7 +54,8 @@ class UserRepository(BaseRepository[User]):
     
     async def set_language(self, tg_id: int, language_code: str) -> Optional[User]:
         """Set user language."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$set": {"language_code": language_code, "updated_at": self._utcnow()}}
         )
@@ -63,7 +66,8 @@ class UserRepository(BaseRepository[User]):
     
     async def ban_user(self, tg_id: int, reason: str = None) -> Optional[User]:
         """Ban a user."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$set": {
                 "is_banned": True,
@@ -78,7 +82,8 @@ class UserRepository(BaseRepository[User]):
     
     async def unban_user(self, tg_id: int) -> Optional[User]:
         """Unban a user."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$set": {
                 "is_banned": False,
@@ -93,7 +98,8 @@ class UserRepository(BaseRepository[User]):
     
     async def add_role(self, tg_id: int, role: UserRole) -> Optional[User]:
         """Add role to user."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$addToSet": {"roles": role.value}, "$set": {"updated_at": self._utcnow()}}
         )
@@ -104,7 +110,8 @@ class UserRepository(BaseRepository[User]):
     
     async def remove_role(self, tg_id: int, role: UserRole) -> Optional[User]:
         """Remove role from user."""
-        result = await self.collection.update_one(
+        collection = self._get_collection()
+        result = await collection.update_one(
             {"tg_id": tg_id},
             {"$pull": {"roles": role.value}, "$set": {"updated_at": self._utcnow()}}
         )
@@ -112,6 +119,23 @@ class UserRepository(BaseRepository[User]):
         if result.modified_count:
             return await self.get_by_tg_id(tg_id)
         return None
+    
+    async def get_users_by_role(self, role: UserRole) -> List[User]:
+        """Get all users with a specific role."""
+        try:
+            collection = self._get_collection()
+            cursor = collection.find({"roles": role.value})
+            
+            users = []
+            async for user_doc in cursor:
+                user_doc["_id"] = str(user_doc["_id"])
+                users.append(User(**user_doc))
+            
+            return users
+            
+        except Exception as e:
+            logger.error(f"Error getting users by role {role}: {e}")
+            return []
     
     async def get_admins(self) -> List[User]:
         """Get all admin users."""

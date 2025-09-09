@@ -104,6 +104,30 @@ class Database:
                 IndexModel([("target_user_id", ASCENDING)]),
             ])
             
+            # Invoices collection indexes
+            await self.db.invoices.create_indexes([
+                IndexModel([("invoice_id", ASCENDING)], unique=True),
+                IndexModel([("user_id", ASCENDING)]),
+                IndexModel([("status", ASCENDING)]),
+                IndexModel([("type", ASCENDING)]),
+                IndexModel([("created_at", DESCENDING)]),
+                IndexModel([("expires_at", ASCENDING)]),
+                IndexModel([("paid_at", DESCENDING)]),
+                IndexModel([("user_id", ASCENDING), ("status", ASCENDING)]),
+                IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)]),
+                IndexModel([("order_id", ASCENDING)]),
+            ])
+            
+            # User deposits collection indexes
+            await self.db.user_deposits.create_indexes([
+                IndexModel([("user_id", ASCENDING)], unique=True),
+                IndexModel([("total_deposited_usdt", DESCENDING)]),
+                IndexModel([("total_deposits_count", DESCENDING)]),
+                IndexModel([("last_deposit_date", DESCENDING)]),
+                IndexModel([("transactions.invoice_id", ASCENDING)]),
+                IndexModel([("transactions.deposit_date", DESCENDING)]),
+            ])
+            
             logger.info("Database indexes created successfully")
             
         except Exception as e:
@@ -113,6 +137,8 @@ class Database:
 
 # Global database instance
 db = Database()
+
+
 
 
 

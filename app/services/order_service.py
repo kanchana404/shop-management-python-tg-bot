@@ -58,7 +58,12 @@ class OrderService:
                 payment_method="balance"
             )
             
-            order_dict = order_data.dict(exclude_unset=True, by_alias=True)
+            # Use model_dump to ensure all fields including defaults are included
+            order_dict = order_data.model_dump(by_alias=True)
+            
+            # Ensure enum values are converted to strings for MongoDB storage
+            if 'status' in order_dict and hasattr(order_dict['status'], 'value'):
+                order_dict['status'] = order_dict['status'].value
             collection = self._get_collection()
             result = await collection.insert_one(order_dict)
             
@@ -67,7 +72,11 @@ class OrderService:
             
             # Get created order
             order_doc = await collection.find_one({"_id": result.inserted_id})
-            return Order(**order_doc)
+            if order_doc:
+                # Convert ObjectId to string for Pydantic validation
+                order_doc["_id"] = str(order_doc["_id"])
+                return Order(**order_doc)
+            return None
             
         except Exception as e:
             logger.error(f"Error creating order: {e}")
@@ -79,7 +88,10 @@ class OrderService:
             from bson import ObjectId
             collection = self._get_collection()
             order_doc = await collection.find_one({"_id": ObjectId(order_id)})
-            return Order(**order_doc) if order_doc else None
+            if order_doc:
+                order_doc["_id"] = str(order_doc["_id"])
+                return Order(**order_doc)
+            return None
         except Exception as e:
             logger.error(f"Error getting order: {e}")
             return None
@@ -98,6 +110,7 @@ class OrderService:
             
             orders = []
             async for order_doc in cursor:
+                order_doc["_id"] = str(order_doc["_id"])
                 orders.append(Order(**order_doc))
             
             return orders
@@ -112,10 +125,14 @@ class OrderService:
             from bson import ObjectId
             
             update_data = OrderUpdate(status=status)
+            # Ensure updated_at is always set to current time
+            update_dict = update_data.model_dump(exclude_unset=True)
+            update_dict['updated_at'] = datetime.utcnow()
+            
             collection = self._get_collection()
             result = await collection.update_one(
                 {"_id": ObjectId(order_id)},
-                {"$set": update_data.dict(exclude_unset=True)}
+                {"$set": update_dict}
             )
             
             if result.modified_count:
@@ -125,6 +142,27 @@ class OrderService:
         except Exception as e:
             logger.error(f"Error updating order status: {e}")
             return None
+    
+    async def update_order(self, order_id: str, update_data: OrderUpdate) -> bool:
+        """Update order with given data."""
+        try:
+            from bson import ObjectId
+            
+            # Ensure updated_at is always set to current time
+            update_dict = update_data.model_dump(exclude_unset=True)
+            update_dict['updated_at'] = datetime.utcnow()
+            
+            collection = self._get_collection()
+            result = await collection.update_one(
+                {"_id": ObjectId(order_id)},
+                {"$set": update_dict}
+            )
+            
+            return result.modified_count > 0
+            
+        except Exception as e:
+            logger.error(f"Error updating order: {e}")
+            return False
     
     async def refund_order(self, order_id: str) -> bool:
         """Refund an order."""
@@ -163,6 +201,7 @@ class OrderService:
             
             orders = []
             async for order_doc in cursor:
+                order_doc["_id"] = str(order_doc["_id"])
                 orders.append(Order(**order_doc))
             
             return orders
@@ -251,6 +290,7 @@ class OrderService:
             cursor = collection.find({}).sort("created_at", -1).limit(limit)
             orders = []
             async for doc in cursor:
+                doc["_id"] = str(doc["_id"])
                 orders.append(Order(**doc))
             return orders
         except Exception as e:

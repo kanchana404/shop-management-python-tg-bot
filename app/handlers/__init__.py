@@ -9,7 +9,10 @@ from .user_handlers import (
     area_selection_callback,
     add_to_cart_callback,
     checkout_callback,
-    language_callback
+    language_callback,
+    clear_cart_callback,
+    cart_item_action_callback,
+    show_user_orders
 )
 from .crypto_payment_handlers import (
     crypto_deposit_callback,
@@ -24,6 +27,7 @@ from .admin_handlers import (
     admin_main_callback,
     admin_products_callback,
     admin_orders_callback,
+    admin_manage_order_callback,
     admin_users_callback,
     admin_revenue_callback,
     admin_reports_callback,
@@ -82,7 +86,7 @@ def register_user_handlers(app: Client):
     app.add_handler(MessageHandler(start_handler, filters.command("start")))
     
     # Callback handlers for main menu and navigation
-    app.add_handler(CallbackQueryHandler(main_menu_callback, filters.regex(r"^(order_products|check_stock|support|language|my_cart|back_to_main|back_to_products|back_to_cities)$")))
+    app.add_handler(CallbackQueryHandler(main_menu_callback, filters.regex(r"^(order_products|preorder|support|language|my_cart|my_orders|check_balance|back_to_main|back_to_products|back_to_cities)$")))
     
     # Back to area callback (with city parameter)
     app.add_handler(CallbackQueryHandler(main_menu_callback, filters.regex(r"^back_to_area:")))
@@ -94,6 +98,10 @@ def register_user_handlers(app: Client):
     # Product actions
     app.add_handler(CallbackQueryHandler(add_to_cart_callback, filters.regex(r"^add_to_cart:")))
     app.add_handler(CallbackQueryHandler(checkout_callback, filters.regex(r"^checkout$")))
+    
+    # Cart management
+    app.add_handler(CallbackQueryHandler(clear_cart_callback, filters.regex(r"^clear_cart$")))
+    app.add_handler(CallbackQueryHandler(cart_item_action_callback, filters.regex(r"^(cart_remove|cart_increase|cart_decrease):")))
     
     # Language selection
     app.add_handler(CallbackQueryHandler(language_callback, filters.regex(r"^lang:")))
@@ -126,12 +134,13 @@ def register_admin_handlers(app: Client):
     # Announcement commands
     app.add_handler(MessageHandler(broadcast_command_handler, filters.command("broadcast")))
     
-    # Admin main menu callbacks
-    app.add_handler(CallbackQueryHandler(admin_main_callback, filters.regex(r"^(admin_products|admin_orders|admin_users|admin_announcements|admin_settings|admin_metrics|admin_revenue|admin_reports|admin_main|close_admin)$")))
+    # Admin main menu callbacks (including close_admin)
+    app.add_handler(CallbackQueryHandler(admin_main_callback, filters.regex(r"^(admin_products|admin_orders|admin_users|admin_announcements|admin_settings|admin_metrics|admin_revenue|admin_reports|close_admin)$")))
     
     # Admin submenu callbacks
     app.add_handler(CallbackQueryHandler(admin_products_callback, filters.regex(r"^admin_(add_product|list_products|bulk_prices|update_stock|export_products|import_products)$")))
     app.add_handler(CallbackQueryHandler(admin_orders_callback, filters.regex(r"^admin_orders_(all|pending|recent)|admin_order_stats$")))
+    app.add_handler(CallbackQueryHandler(admin_manage_order_callback, filters.regex(r"^admin_manage_order:|admin_order_action:")))
     app.add_handler(CallbackQueryHandler(admin_users_callback, filters.regex(r"^admin_users_(all|banned|admins)|admin_user_stats$")))
     
     # Announcement callbacks
@@ -143,8 +152,8 @@ def register_admin_handlers(app: Client):
     # Reports callbacks (specific reports first, then back navigation)
     app.add_handler(CallbackQueryHandler(admin_reports_callback, filters.regex(r"^admin_report_(orders|users|inventory|financial|performance|marketing)|admin_(export_all|email_reports)$")))
     
-    # Back navigation
-    app.add_handler(CallbackQueryHandler(admin_back_callback, filters.regex(r"^admin_main_back$")))
+    # Back navigation - handle all admin back buttons
+    app.add_handler(CallbackQueryHandler(admin_back_callback, filters.regex(r"^(admin_main|admin_main_back)$")))
 
 
 def register_all_handlers(app: Client):

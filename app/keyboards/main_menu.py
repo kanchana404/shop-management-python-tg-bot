@@ -11,10 +11,10 @@ def get_main_menu_keyboard(user=None) -> InlineKeyboardMarkup:
     
     builder = BaseKeyboardBuilder()
     
-    # First row - Order Products and Check Stock
+    # First row - Order Products and Pre-order
     builder.add_buttons_row([
         {"text": _("start.order_products", lang), "callback_data": "order_products"},
-        {"text": _("start.check_stock", lang), "callback_data": "check_stock"}
+        {"text": "📋 Pre-order", "callback_data": "preorder"}
     ])
     
     # Second row - Support and Crypto Deposit
@@ -27,6 +27,12 @@ def get_main_menu_keyboard(user=None) -> InlineKeyboardMarkup:
     builder.add_buttons_row([
         {"text": _("start.language", lang), "callback_data": "language"},
         {"text": _("start.my_cart", lang), "callback_data": "my_cart"}
+    ])
+    
+    # Fourth row - Orders and Crypto Wallet
+    builder.add_buttons_row([
+        {"text": "📦 My Orders", "callback_data": "my_orders"},
+        {"text": "🪙 My Crypto Wallet", "callback_data": "check_balance"}
     ])
     
     return builder.build()

@@ -34,6 +34,7 @@ cart:
   checkout: "✅ Checkout"
   item_added: "✅ Item added to cart"
   item_removed: "🗑️ Item removed from cart"
+  cleared: "🗑️ Korpa je uspešno obrisana!"
   insufficient_balance: "❌ Insufficient balance"
   checkout_success: "✅ Order placed successfully!"
 

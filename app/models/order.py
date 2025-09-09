@@ -41,8 +41,15 @@ class OrderCreate(BaseModel):
     user_id: int
     items: List[CartItem]
     total_amount: float
+    status: OrderStatus = OrderStatus.PENDING
     payment_method: str = "balance"
     notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        """Pydantic config."""
+        use_enum_values = True
 
 
 class OrderUpdate(BaseModel):

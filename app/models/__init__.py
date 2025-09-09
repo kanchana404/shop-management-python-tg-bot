@@ -8,6 +8,8 @@ from .deposit import Deposit, DepositCreate, DepositUpdate, CoinType, NetworkTyp
 from .announcement import Announcement, AnnouncementCreate, AnnouncementUpdate, AnnouncementType, AnnouncementStatus
 from .settings import BotSettings, SettingsUpdate, DEFAULT_SETTINGS
 from .audit_log import AuditLog, AuditLogCreate, AuditAction
+from .invoice import Invoice, InvoiceCreate, InvoiceUpdate, InvoiceStatus, InvoiceType
+from .user_deposits import UserDeposits, UserDepositsUpdate, DepositTransaction
 
 __all__ = [
     # User models
@@ -26,4 +28,8 @@ __all__ = [
     "BotSettings", "SettingsUpdate", "DEFAULT_SETTINGS",
     # Audit log models
     "AuditLog", "AuditLogCreate", "AuditAction",
+    # Invoice models
+    "Invoice", "InvoiceCreate", "InvoiceUpdate", "InvoiceStatus", "InvoiceType",
+    # User deposits models
+    "UserDeposits", "UserDepositsUpdate", "DepositTransaction",
 ]

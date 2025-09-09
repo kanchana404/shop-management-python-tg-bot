@@ -11,6 +11,7 @@ from .product import (
     get_products_keyboard,
     get_product_details_keyboard,
     get_cart_keyboard,
+    get_enhanced_cart_keyboard,
     get_cart_item_keyboard
 )
 from .payment import (
@@ -48,6 +49,7 @@ __all__ = [
     "get_products_keyboard",
     "get_product_details_keyboard",
     "get_cart_keyboard",
+    "get_enhanced_cart_keyboard",
     "get_cart_item_keyboard",
     # Payment
     "get_crypto_selection_keyboard",

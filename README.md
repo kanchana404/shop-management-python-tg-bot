@@ -356,5 +356,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 
 
-#   s h o p - m a n a g e m e n t - p y t h o n - t g - b o t  
+#   s h o p - m a n a g e m e n t - p y t h o n - t g - b o t 
  
+ 
+

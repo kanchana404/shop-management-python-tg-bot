@@ -6,10 +6,31 @@ from typing import Dict, Any
 from fastapi import FastAPI, Request, HTTPException
 from app.services.crypto_pay_service import crypto_pay_service
 from app.handlers.crypto_payment_handlers import handle_crypto_webhook
+from app.db import db
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Crypto Pay Webhook")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database connection on startup."""
+    try:
+        await db.connect()
+        logger.info("Database connected for webhook server")
+    except Exception as e:
+        logger.error(f"Failed to connect database in webhook server: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close database connection on shutdown."""
+    try:
+        await db.disconnect()
+        logger.info("Database disconnected from webhook server")
+    except Exception as e:
+        logger.error(f"Error disconnecting database: {e}")
 
 
 @app.post("/webhook/crypto-pay")

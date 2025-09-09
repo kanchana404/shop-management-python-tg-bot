@@ -20,25 +20,20 @@ def get_products_keyboard(
     lang = get_user_language(user)
     builder = BaseKeyboardBuilder()
     
-    # Add to cart buttons for each product
+    # Add to cart buttons for each product (all products shown are available)
     for product in products:
-        button_text = f"➕ {product.name}"
-        if product.quantity == 0:
-            button_text = f"❌ {product.name}"
-        elif product.quantity <= 5:
-            button_text = f"⚠️ {product.name}"
+        # Simple available product button (no stock indicators since we pre-filter)
+        button_text = f"🛒 {product.name}"
         
-        callback_prefix = "stock" if is_stock_check else "add_to_cart"
+        # All products shown are available, so always use add_to_cart
         builder.add_button(
             button_text,
-            f"{callback_prefix}:{product.id}" if product.quantity > 0 else "out_of_stock"
+            f"add_to_cart:{product.id}"
         )
     
     # Add pagination if needed
     if total_pages > 1:
         callback_prefix = f"products_page:{city}:{area}"
-        if is_stock_check:
-            callback_prefix = f"stock_page:{city}:{area}"
         builder.add_pagination(current_page, total_pages, callback_prefix)
     
     # Back button
@@ -89,6 +84,45 @@ def get_cart_keyboard(user=None) -> InlineKeyboardMarkup:
     return builder.build()
 
 
+def get_enhanced_cart_keyboard(user=None, cart_items=None) -> InlineKeyboardMarkup:
+    """Get enhanced cart keyboard with individual item management."""
+    lang = get_user_language(user)
+    builder = BaseKeyboardBuilder()
+    
+    # Add item management buttons for each item
+    if cart_items:
+        for item in cart_items:
+            # Item name with quantity
+            item_text = f"📦 {item.product_name} ({item.quantity})"
+            builder.add_button(item_text, f"cart_item_info:{item.product_id}")
+            
+            # Quantity controls in same row
+            builder.add_buttons_row([
+                {"text": "➖", "callback_data": f"cart_decrease:{item.product_id}"},
+                {"text": f"🗑️", "callback_data": f"cart_remove:{item.product_id}"},
+                {"text": "➕", "callback_data": f"cart_increase:{item.product_id}"}
+            ])
+    
+    # Separator
+    builder.add_button("─" * 20, "separator")
+    
+    # Main action buttons
+    builder.add_button(
+        _("cart.checkout", lang),
+        "checkout"
+    )
+    
+    # Clear cart button
+    builder.add_button(
+        "🗑️ Clear All Items",
+        "clear_cart"
+    )
+    
+    builder.add_back_button("back_to_main")
+    
+    return builder.build()
+
+
 def get_cart_item_keyboard(item_id: str, user=None) -> InlineKeyboardMarkup:
     """Get individual cart item keyboard."""
     lang = get_user_language(user)
@@ -107,6 +141,8 @@ def get_cart_item_keyboard(item_id: str, user=None) -> InlineKeyboardMarkup:
     )
     
     return builder.build()
+
+
 
 
 

@@ -33,6 +33,13 @@ from app.utils.rate_limiter import rate_limiter
 logger = logging.getLogger(__name__)
 
 
+def get_status_value(status):
+    """Helper function to safely get status string value."""
+    if hasattr(status, 'value'):
+        return status.value
+    return str(status)
+
+
 async def safe_edit_message(callback_query: CallbackQuery, text: str, reply_markup=None):
     """Safely edit message, handling MessageNotModified errors."""
     try:
@@ -173,9 +180,9 @@ async def show_admin_metrics(callback_query: CallbackQuery, user):
         metrics_text = (
             "📊 **Bot Analytics & Metrics**\n\n"
             "**📈 Revenue:**\n"
-            f"• Today: €{today_revenue:.2f}\n"
-            f"• This Week: €{weekly_stats.get('total_revenue', 0):.2f}\n"
-            f"• Last 30 Days: €{stats.get('total_revenue', 0):.2f}\n\n"
+            f"• Today: USDT{today_revenue:.2f}\n"
+            f"• This Week: USDT{weekly_stats.get('total_revenue', 0):.2f}\n"
+            f"• Last 30 Days: USDT{stats.get('total_revenue', 0):.2f}\n\n"
             
             "**📋 Orders:**\n"
             f"• Today: {today_orders}\n"
@@ -194,7 +201,7 @@ async def show_admin_metrics(callback_query: CallbackQuery, user):
             for status, data in stats['by_status'].items():
                 count = data['count']
                 amount = data['total_amount']
-                metrics_text += f"• {status.title()}: {count} orders (€{amount:.2f})\n"
+                metrics_text += f"• {status.title()}: {count} orders (USDT{amount:.2f})\n"
         
         # Add quick actions keyboard
         from app.keyboards.base import BaseKeyboardBuilder
@@ -251,7 +258,7 @@ async def admin_products_callback(client: Client, callback_query: CallbackQuery)
                 for product in products:
                     status = "✅ Active" if product.is_active else "❌ Inactive"
                     text += f"**{product.name}**\n"
-                    text += f"Price: €{product.price} | Stock: {product.quantity}\n"
+                    text += f"Price: USDT{product.price} | Stock: {product.quantity}\n"
                     text += f"Location: {getattr(product.city, 'value', product.city)}, {getattr(product.area, 'value', product.area)}\n"
                     text += f"Status: {status}\n\n"
             
@@ -334,7 +341,7 @@ async def admin_orders_callback(client: Client, callback_query: CallbackQuery):
             text = (
                 "📊 **Order Statistics (30 days)**\n\n"
                 f"Total Orders: {stats.get('total_orders', 0)}\n"
-                f"Total Revenue: €{stats.get('total_revenue', 0):.2f}\n\n"
+                f"Total Revenue: USDT{stats.get('total_revenue', 0):.2f}\n\n"
                 "By Status:\n"
             )
             for status, data in stats.get('by_status', {}).items():
@@ -357,18 +364,57 @@ async def admin_orders_callback(client: Client, callback_query: CallbackQuery):
         if 'orders' in locals():
             if not orders:
                 text += "No orders found."
+                from app.keyboards.base import BaseKeyboardBuilder
+                builder = BaseKeyboardBuilder()
+                builder.add_back_button("admin_orders")
+                keyboard = builder.build()
             else:
-                for order in orders:
-                    text += f"**Order #{order.id[:8]}**\n"
-                    text += f"User: {order.user_id}\n"
-                    text += f"Total: €{order.total_amount:.2f}\n"
-                    text += f"Status: {order.status.value.title()}\n"
-                    text += f"Date: {order.created_at.strftime('%Y-%m-%d %H:%M')}\n\n"
-        
-        from app.keyboards.base import BaseKeyboardBuilder
-        builder = BaseKeyboardBuilder()
-        builder.add_back_button("admin_orders")
-        keyboard = builder.build()
+                # Show first 5 orders with action buttons
+                for i, order in enumerate(orders[:5], 1):
+                    status_emoji = {
+                        "pending": "⏳",
+                        "confirmed": "✅", 
+                        "processing": "🔄",
+                        "shipped": "🚚",
+                        "delivered": "📦",
+                        "cancelled": "❌",
+                        "refunded": "💸"
+                    }.get(get_status_value(order.status), "📋")
+                    
+                    text += f"**{i}. Order #{order.id[:8]}**\n"
+                    text += f"👤 User ID: {order.user_id}\n"
+                    text += f"💰 Total: {order.total_amount:.2f} USDT\n"
+                    text += f"{status_emoji} Status: {get_status_value(order.status).upper()}\n"
+                    text += f"📅 Created: {order.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+                    
+                    # Show last update if different from creation
+                    if order.updated_at and order.updated_at != order.created_at:
+                        time_diff = order.updated_at - order.created_at
+                        if time_diff.total_seconds() > 60:
+                            text += f"🔄 Updated: {order.updated_at.strftime('%Y-%m-%d %H:%M')}\n"
+                    
+                    text += f"🛍️ Items: {len(order.items)} products\n\n"
+                
+                if len(orders) > 5:
+                    text += f"... and {len(orders) - 5} more orders\n\n"
+                
+                # Create action buttons for order management
+                from app.keyboards.base import BaseKeyboardBuilder
+                builder = BaseKeyboardBuilder()
+                
+                # Add individual order buttons (first 3 orders)
+                for i, order in enumerate(orders[:3], 1):
+                    builder.add_button(
+                        f"🔧 Manage Order #{order.id[:8]}", 
+                        f"admin_manage_order:{order.id}"
+                    )
+                
+                # Add navigation buttons
+                builder.add_buttons_row([
+                    {"text": "🔄 Refresh", "callback_data": data},
+                    {"text": "⬅️ Back", "callback_data": "admin_orders"}
+                ])
+                keyboard = builder.build()
         
         await callback_query.edit_message_text(text, reply_markup=keyboard)
         await callback_query.answer()
@@ -376,6 +422,250 @@ async def admin_orders_callback(client: Client, callback_query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error in admin orders callback: {e}")
         await callback_query.answer("❌ An error occurred", show_alert=True)
+
+
+@rate_limiter
+async def admin_manage_order_callback(client: Client, callback_query: CallbackQuery):
+    """Handle individual order management."""
+    try:
+        user_id = callback_query.from_user.id
+        
+        if not await is_admin(user_id):
+            await callback_query.answer("❌ Access denied", show_alert=True)
+            return
+        
+        data = callback_query.data
+        
+        if data.startswith("admin_manage_order:"):
+            order_id = data.split(":", 1)[1]
+            order = await order_service.get_order_by_id(order_id)
+            
+            if not order:
+                await callback_query.answer("❌ Order not found", show_alert=True)
+                return
+            
+            # Get customer info
+            customer = await user_repo.get_by_tg_id(order.user_id)
+            customer_name = f"{customer.first_name}" if customer else f"User {order.user_id}"
+            if customer and customer.last_name:
+                customer_name += f" {customer.last_name}"
+            
+            # Build detailed order view
+            status_emoji = {
+                "pending": "⏳",
+                "confirmed": "✅", 
+                "processing": "🔄",
+                "shipped": "🚚",
+                "delivered": "📦",
+                "cancelled": "❌",
+                "refunded": "💸"
+            }.get(get_status_value(order.status), "📋")
+            
+            text = f"🔧 **Order Management**\n"
+            text += f"Order #{order.id[:8]}\n"
+            text += "═" * 30 + "\n\n"
+            
+            text += f"👤 **Customer:** {customer_name}\n"
+            text += f"📞 **User ID:** {order.user_id}\n"
+            if customer and customer.username:
+                text += f"👤 **Username:** @{customer.username}\n"
+            text += f"💰 **Balance:** {customer.balance:.2f} USDT\n\n" if customer else ""
+            
+            text += f"{status_emoji} **Status:** {get_status_value(order.status).upper()}\n"
+            text += f"💰 **Total:** {order.total_amount:.2f} USDT\n"
+            text += f"💳 **Payment:** {order.payment_method}\n"
+            text += f"📅 **Created:** {order.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            
+            # Show updated time if different from created time
+            if order.updated_at and order.updated_at != order.created_at:
+                time_diff = order.updated_at - order.created_at
+                if time_diff.total_seconds() > 60:  # Only show if more than 1 minute difference
+                    text += f"🔄 **Last Updated:** {order.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            
+            text += "\n"
+            
+            text += f"🛍️ **Items Ordered ({len(order.items)}):**\n"
+            for i, item in enumerate(order.items, 1):
+                text += f"{i}. **{item.product_name}**\n"
+                text += f"   💰 {item.price:.2f} USDT × {item.quantity} = {item.total_price:.2f} USDT\n"
+            
+            if order.notes:
+                text += f"\n📝 **Notes:** {order.notes}\n"
+            
+            # Create action buttons based on current status
+            from app.keyboards.base import BaseKeyboardBuilder
+            builder = BaseKeyboardBuilder()
+            
+            status_value = get_status_value(order.status)
+            
+            if status_value == "pending":
+                builder.add_buttons_row([
+                    {"text": "✅ Confirm Order", "callback_data": f"admin_order_action:confirm:{order.id}"},
+                    {"text": "❌ Cancel Order", "callback_data": f"admin_order_action:cancel:{order.id}"}
+                ])
+            elif status_value == "confirmed":
+                builder.add_buttons_row([
+                    {"text": "🔄 Start Processing", "callback_data": f"admin_order_action:processing:{order.id}"},
+                    {"text": "❌ Cancel Order", "callback_data": f"admin_order_action:cancel:{order.id}"}
+                ])
+            elif status_value == "processing":
+                builder.add_buttons_row([
+                    {"text": "🚚 Mark as Shipped", "callback_data": f"admin_order_action:shipped:{order.id}"},
+                    {"text": "❌ Cancel Order", "callback_data": f"admin_order_action:cancel:{order.id}"}
+                ])
+            elif status_value == "shipped":
+                builder.add_button("📦 Mark as Delivered", f"admin_order_action:delivered:{order.id}")
+            
+            # Always available actions
+            if status_value not in ["delivered", "cancelled", "refunded"]:
+                builder.add_button("📝 Add Notes", f"admin_order_notes:{order.id}")
+            
+            builder.add_buttons_row([
+                {"text": "🔄 Refresh", "callback_data": f"admin_manage_order:{order.id}"},
+                {"text": "⬅️ Back to Orders", "callback_data": "admin_orders_pending" if status_value == "pending" else "admin_orders_all"}
+            ])
+            
+            keyboard = builder.build()
+            await callback_query.edit_message_text(text, reply_markup=keyboard)
+            await callback_query.answer()
+            
+        elif data.startswith("admin_order_action:"):
+            # Handle order status changes
+            _, action, order_id = data.split(":", 2)
+            await handle_order_action(callback_query, action, order_id)
+            
+    except Exception as e:
+        logger.error(f"Error in admin manage order callback: {e}")
+        await callback_query.answer("❌ An error occurred", show_alert=True)
+
+
+async def handle_order_action(callback_query: CallbackQuery, action: str, order_id: str):
+    """Handle order status change actions."""
+    try:
+        order = await order_service.get_order_by_id(order_id)
+        if not order:
+            await callback_query.answer("❌ Order not found", show_alert=True)
+            return
+        
+        # Map actions to statuses
+        status_map = {
+            "confirm": OrderStatus.CONFIRMED,
+            "processing": OrderStatus.PROCESSING,
+            "shipped": OrderStatus.SHIPPED,
+            "delivered": OrderStatus.DELIVERED,
+            "cancel": OrderStatus.CANCELLED
+        }
+        
+        new_status = status_map.get(action)
+        if not new_status:
+            await callback_query.answer("❌ Invalid action", show_alert=True)
+            return
+        
+        # Update order status
+        from app.models import OrderUpdate
+        success = await order_service.update_order(order_id, OrderUpdate(status=new_status))
+        
+        if success:
+            # Send notification to customer
+            await notify_customer_order_update(order.user_id, order, new_status)
+            
+            # Show success message to admin
+            action_messages = {
+                "confirm": "✅ Order confirmed successfully!",
+                "processing": "🔄 Order moved to processing!",
+                "shipped": "🚚 Order marked as shipped!",
+                "delivered": "📦 Order marked as delivered!",
+                "cancel": "❌ Order cancelled successfully!"
+            }
+            
+            await callback_query.answer(action_messages.get(action, "✅ Order updated!"))
+            
+            # Refresh the order view
+            from pyrogram.types import CallbackQuery as CQ
+            refresh_callback = CQ(
+                id=callback_query.id,
+                from_user=callback_query.from_user,
+                message=callback_query.message,
+                data=f"admin_manage_order:{order_id}",
+                chat_instance=callback_query.chat_instance
+            )
+            await admin_manage_order_callback(callback_query.client, refresh_callback)
+        else:
+            await callback_query.answer("❌ Failed to update order", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Error handling order action: {e}")
+        await callback_query.answer("❌ An error occurred", show_alert=True)
+
+
+async def notify_customer_order_update(user_id: int, order, new_status: OrderStatus):
+    """Send notification to customer about order status update."""
+    try:
+        # Get customer info
+        customer = await user_repo.get_by_tg_id(user_id)
+        if not customer:
+            logger.warning(f"Customer {user_id} not found for order notification")
+            return
+        
+        # Build notification message
+        status_messages = {
+            OrderStatus.CONFIRMED: {
+                "title": "✅ **ORDER CONFIRMED!**",
+                "message": "Your order has been confirmed and is being prepared.",
+                "emoji": "✅"
+            },
+            OrderStatus.PROCESSING: {
+                "title": "🔄 **ORDER PROCESSING**",
+                "message": "Your order is now being processed and prepared for shipment.",
+                "emoji": "🔄"
+            },
+            OrderStatus.SHIPPED: {
+                "title": "🚚 **ORDER SHIPPED!**",
+                "message": "Great news! Your order has been shipped and is on its way to you.",
+                "emoji": "🚚"
+            },
+            OrderStatus.DELIVERED: {
+                "title": "📦 **ORDER DELIVERED!**",
+                "message": "Your order has been successfully delivered! Thank you for shopping with us.",
+                "emoji": "📦"
+            },
+            OrderStatus.CANCELLED: {
+                "title": "❌ **ORDER CANCELLED**",
+                "message": "Your order has been cancelled. If you have any questions, please contact support.",
+                "emoji": "❌"
+            }
+        }
+        
+        status_info = status_messages.get(new_status)
+        if not status_info:
+            return
+        
+        notification_text = f"{status_info['title']}\n"
+        notification_text += "═" * 35 + "\n\n"
+        notification_text += f"📋 **Order #{order.id[:8]}**\n"
+        notification_text += f"💰 **Total:** {order.total_amount:.2f} USDT\n"
+        notification_text += f"📅 **Date:** {order.created_at.strftime('%Y-%m-%d')}\n\n"
+        notification_text += f"{status_info['message']}\n\n"
+        
+        if new_status == OrderStatus.DELIVERED:
+            notification_text += "🎉 **Thank you for your business!**\n"
+            notification_text += "We hope you enjoy your purchase.\n\n"
+        elif new_status == OrderStatus.SHIPPED:
+            notification_text += "📱 **Track your order:**\n"
+            notification_text += "You'll receive updates as your order progresses.\n\n"
+        
+        notification_text += "═" * 35
+        
+        # Send notification using the global bot instance
+        from app.bot import bot
+        if bot.active_clients:
+            await bot.active_clients[0].send_message(user_id, notification_text)
+            logger.info(f"Order status notification sent to user {user_id} for order {order.id}")
+        else:
+            logger.error("No active bot clients available for sending order notification")
+            
+    except Exception as e:
+        logger.error(f"Error sending order notification to user {user_id}: {e}")
 
 
 @rate_limiter
@@ -443,7 +733,7 @@ async def admin_users_callback(client: Client, callback_query: CallbackQuery):
                     
                     text += f"**{name}** ({username})\n"
                     text += f"ID: {user_item.tg_id}\n"
-                    text += f"Balance: €{user_item.balance:.2f}\n"
+                    text += f"Balance: USDT{user_item.balance:.2f}\n"
                     text += f"Roles: {roles}\n"
                     text += f"Status: {status}\n\n"
         
@@ -511,18 +801,20 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
             orders = await order_service.get_today_orders_count()
             text = (
                 "📅 **Today's Revenue**\n\n"
-                f"💰 Revenue: €{revenue:.2f}\n"
+                f"💰 Revenue: {revenue:.2f} USDT\n"
                 f"📋 Orders: {orders}\n"
-                f"📊 Average Order: €{(revenue/orders):.2f if orders > 0 else 0:.2f}\n"
+                f"📊 Average Order: {(revenue/orders if orders > 0 else 0):.2f} USDT\n"
             )
             
         elif data == "admin_revenue_week":
             stats = await order_service.get_order_stats(7)
+            total_revenue = stats.get('total_revenue', 0)
+            total_orders = stats.get('total_orders', 0)
             text = (
                 "📅 **This Week's Revenue**\n\n"
-                f"💰 Revenue: €{stats.get('total_revenue', 0):.2f}\n"
-                f"📋 Orders: {stats.get('total_orders', 0)}\n"
-                f"📊 Average Order: €{(stats.get('total_revenue', 0)/stats.get('total_orders', 1)):.2f}\n"
+                f"💰 Revenue: {total_revenue:.2f} USDT\n"
+                f"📋 Orders: {total_orders}\n"
+                f"📊 Average Order: {(total_revenue/total_orders if total_orders > 0 else 0):.2f} USDT\n"
             )
             
         elif data == "admin_revenue_month":
@@ -530,24 +822,28 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             days_in_month = (now - month_start).days + 1
             stats = await order_service.get_order_stats(days_in_month)
+            total_revenue = stats.get('total_revenue', 0)
+            total_orders = stats.get('total_orders', 0)
             text = (
                 "📅 **This Month's Revenue**\n\n"
-                f"💰 Revenue: €{stats.get('total_revenue', 0):.2f}\n"
-                f"📋 Orders: {stats.get('total_orders', 0)}\n"
-                f"📊 Average Order: €{(stats.get('total_revenue', 0)/stats.get('total_orders', 1)):.2f}\n"
+                f"💰 Revenue: {total_revenue:.2f} USDT\n"
+                f"📋 Orders: {total_orders}\n"
+                f"📊 Average Order: {(total_revenue/total_orders if total_orders > 0 else 0):.2f} USDT\n"
             )
             
         elif data == "admin_revenue_30days":
             stats = await order_service.get_order_stats(30)
+            total_revenue = stats.get('total_revenue', 0)
+            total_orders = stats.get('total_orders', 0)
             text = (
                 "📅 **Last 30 Days Revenue**\n\n"
-                f"💰 Revenue: €{stats.get('total_revenue', 0):.2f}\n"
-                f"📋 Orders: {stats.get('total_orders', 0)}\n"
-                f"📊 Average Order: €{(stats.get('total_revenue', 0)/stats.get('total_orders', 1)):.2f}\n\n"
+                f"💰 Revenue: {total_revenue:.2f} USDT\n"
+                f"📋 Orders: {total_orders}\n"
+                f"📊 Average Order: {(total_revenue/total_orders if total_orders > 0 else 0):.2f} USDT\n\n"
                 "**Status Breakdown:**\n"
             )
             for status, data_item in stats.get('by_status', {}).items():
-                text += f"• {status.title()}: {data_item['count']} orders (€{data_item['total_amount']:.2f})\n"
+                text += f"• {status.title()}: {data_item['count']} orders (USDT{data_item['total_amount']:.2f})\n"
             
         elif data == "admin_top_products":
             # Get top products by sales volume and revenue
@@ -567,12 +863,12 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
             text += "\n**💰 Top Revenue Products:**\n"
             if stats.get('by_revenue'):
                 for i, (product_name, revenue) in enumerate(stats['by_revenue'][:5], 1):
-                    text += f"{i}. {product_name} - €{revenue:.2f}\n"
+                    text += f"{i}. {product_name} - USDT{revenue:.2f}\n"
             else:
                 text += "No revenue data found\n"
             
             text += f"\n📈 **Total Products Sold:** {stats.get('total_items', 0)}"
-            text += f"\n💰 **Total Revenue:** €{stats.get('total_revenue', 0):.2f}"
+            text += f"\n💰 **Total Revenue:** USDT{stats.get('total_revenue', 0):.2f}"
             
         elif data == "admin_top_customers":
             # Get top customers by spending and order frequency
@@ -588,7 +884,7 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
                     # Get user info
                     user = await user_repo.get_by_tg_id(user_id)
                     name = user.first_name if user else f"User {user_id}"
-                    text += f"{i}. {name} - €{total:.2f}\n"
+                    text += f"{i}. {name} - USDT{total:.2f}\n"
             else:
                 text += "No customer data found\n"
             
@@ -602,7 +898,7 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
                 text += "No order data found\n"
             
             text += f"\n👥 **Total Customers:** {stats.get('total_customers', 0)}"
-            text += f"\n📊 **Avg. Order Value:** €{stats.get('avg_order_value', 0):.2f}"
+            text += f"\n📊 **Avg. Order Value:** USDT{stats.get('avg_order_value', 0):.2f}"
             
         elif data == "admin_sales_trends":
             # Get sales trends data
@@ -618,7 +914,7 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
                     date = day_data['date'].strftime('%Y-%m-%d')
                     revenue = day_data['revenue']
                     orders = day_data['orders']
-                    text += f"• {date}: €{revenue:.2f} ({orders} orders)\n"
+                    text += f"• {date}: USDT{revenue:.2f} ({orders} orders)\n"
             else:
                 text += "No daily sales data\n"
             
@@ -634,7 +930,7 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
                     text += f"• {hour}:00 - {count} orders\n"
             
             text += f"\n📈 **Best Day:** {trends.get('best_day', 'N/A')}"
-            text += f"\n💰 **Best Day Revenue:** €{trends.get('best_day_revenue', 0):.2f}"
+            text += f"\n💰 **Best Day Revenue:** USDT{trends.get('best_day_revenue', 0):.2f}"
             
         elif data == "admin_growth_analysis":
             total_users = await user_repo.count({})
@@ -646,11 +942,11 @@ async def admin_revenue_callback(client: Client, callback_query: CallbackQuery):
                 "📈 **Growth Analysis**\n\n"
                 f"👥 Total Users: {total_users}\n"
                 f"✅ Active Users: {active_users}\n"
-                f"📊 Retention Rate: {(active_users/total_users*100):.1f}%\n\n"
+                f"📊 Retention Rate: {(active_users/total_users*100 if total_users > 0 else 0):.1f}%\n\n"
                 f"💰 Revenue Growth:\n"
-                f"• Last 7 days: €{total_revenue_7:.2f}\n"
-                f"• Last 30 days: €{total_revenue_30:.2f}\n"
-                f"• Weekly average: €{(total_revenue_30/4.3):.2f}\n"
+                f"• Last 7 days: USDT{total_revenue_7:.2f}\n"
+                f"• Last 30 days: USDT{total_revenue_30:.2f}\n"
+                f"• Weekly average: USDT{(total_revenue_30/4.3):.2f}\n"
             )
             
         else:
@@ -693,12 +989,12 @@ async def admin_reports_callback(client: Client, callback_query: CallbackQuery):
             text = (
                 "📋 **Order Report (30 days)**\n\n"
                 f"Total Orders: {stats.get('total_orders', 0)}\n"
-                f"Total Revenue: €{stats.get('total_revenue', 0):.2f}\n\n"
+                f"Total Revenue: USDT{stats.get('total_revenue', 0):.2f}\n\n"
                 "**Recent Orders:**\n"
             )
             
             for order in recent_orders:
-                text += f"• #{order.id[:8]} - €{order.total_amount:.2f} - {order.status.value}\n"
+                text += f"• #{order.id[:8]} - USDT{order.total_amount:.2f} - {order.status.value}\n"
             
         elif data == "admin_report_users":
             total_users = await user_repo.count({})
@@ -723,7 +1019,7 @@ async def admin_reports_callback(client: Client, callback_query: CallbackQuery):
                 f"Total Products: {total_products}\n"
                 f"Active Products: {active_products}\n"
                 f"Low Stock Items: {low_stock}\n"
-                f"Active Rate: {(active_products/total_products*100):.1f}%\n"
+                f"Active Rate: {(active_products/total_products*100 if total_products > 0 else 0):.1f}%\n"
             )
             
         elif data == "admin_report_financial":
@@ -733,10 +1029,10 @@ async def admin_reports_callback(client: Client, callback_query: CallbackQuery):
             
             text = (
                 "💰 **Financial Report**\n\n"
-                f"Today: €{today_revenue:.2f}\n"
-                f"This Week: €{week_stats.get('total_revenue', 0):.2f}\n"
-                f"Last 30 Days: €{month_stats.get('total_revenue', 0):.2f}\n"
-                f"Daily Average: €{(month_stats.get('total_revenue', 0)/30):.2f}\n"
+                f"Today: USDT{today_revenue:.2f}\n"
+                f"This Week: USDT{week_stats.get('total_revenue', 0):.2f}\n"
+                f"Last 30 Days: USDT{month_stats.get('total_revenue', 0):.2f}\n"
+                f"Daily Average: USDT{(month_stats.get('total_revenue', 0)/30):.2f}\n"
             )
             
         elif data == "admin_report_performance":
@@ -758,9 +1054,9 @@ async def admin_reports_callback(client: Client, callback_query: CallbackQuery):
                 f"• Return Rate: {perf_data.get('return_rate', 0):.1f}%\n\n"
                 
                 f"**💰 Financial Performance:**\n"
-                f"• Total Revenue: €{perf_data.get('total_revenue', 0):.2f}\n"
-                f"• Avg. Order Value: €{perf_data.get('avg_order_value', 0):.2f}\n"
-                f"• Top Product Revenue: €{perf_data.get('top_product_revenue', 0):.2f}\n"
+                f"• Total Revenue: USDT{perf_data.get('total_revenue', 0):.2f}\n"
+                f"• Avg. Order Value: USDT{perf_data.get('avg_order_value', 0):.2f}\n"
+                f"• Top Product Revenue: USDT{perf_data.get('top_product_revenue', 0):.2f}\n"
             )
             
         elif data == "admin_report_marketing":
@@ -1003,7 +1299,7 @@ async def addproduct_command_handler(client: Client, message: Message):
                     "✅ **Product Added Successfully!**\n\n"
                     f"**Name:** {product.name}\n"
                     f"**Description:** {product.description}\n"
-                    f"**Price:** €{product.price:.2f}\n"
+                    f"**Price:** USDT{product.price:.2f}\n"
                     f"**Stock:** {product.quantity}\n"
                     f"**Location:** {getattr(product.city, 'value', product.city)}, {getattr(product.area, 'value', product.area)}\n"
                     f"**Status:** {'✅ Active' if product.is_active else '❌ Inactive'}\n"

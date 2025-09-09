@@ -186,6 +186,31 @@ class CryptoPayService:
         """Get exchange rates."""
         return await self._make_request("GET", "getExchangeRates")
     
+    async def get_usd_rate(self, asset: str) -> Optional[float]:
+        """Get USD rate for a specific asset."""
+        try:
+            rates = await self.get_exchange_rates()
+            for rate in rates:
+                if (rate.get('source') == asset and 
+                    rate.get('target') == 'USD' and 
+                    rate.get('is_valid', False)):
+                    return float(rate.get('rate', 0))
+            return None
+        except Exception as e:
+            logger.error(f"Error getting USD rate for {asset}: {e}")
+            return None
+    
+    async def convert_to_usd(self, amount: str, asset: str) -> Optional[float]:
+        """Convert crypto amount to USD using current exchange rates."""
+        try:
+            rate = await self.get_usd_rate(asset)
+            if rate:
+                return float(amount) * rate
+            return None
+        except Exception as e:
+            logger.error(f"Error converting {amount} {asset} to USD: {e}")
+            return None
+    
     async def get_currencies(self) -> Dict[str, List[str]]:
         """Get supported currencies."""
         return await self._make_request("GET", "getCurrencies")
@@ -269,7 +294,7 @@ class CryptoPayService:
         asset: str = "USDT",
         description: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Create a deposit invoice for a user."""
+        """Create a deposit invoice for a user and store in database."""
         if not description:
             description = f"Deposit {amount} {asset} to your account"
         
@@ -280,7 +305,8 @@ class CryptoPayService:
             "asset": asset
         })
         
-        return await self.create_invoice(
+        # Create invoice via API
+        api_response = await self.create_invoice(
             amount=amount,
             asset=asset,
             description=description,
@@ -289,6 +315,43 @@ class CryptoPayService:
             paid_btn_url="https://t.me/your_bot_username",  # Replace with your bot username
             expires_in=3600  # 1 hour
         )
+        
+        # Store invoice in database
+        if api_response and api_response.get('invoice_id'):
+            try:
+                from app.db.invoice_repository import invoice_repo
+                from app.models.invoice import InvoiceCreate, InvoiceType
+                from datetime import datetime, timedelta
+                
+                invoice_data = InvoiceCreate(
+                    invoice_id=api_response['invoice_id'],
+                    user_id=user_id,
+                    type=InvoiceType.DEPOSIT,
+                    amount=amount,
+                    asset=asset,
+                    currency_type="crypto",
+                    bot_invoice_url=api_response.get('bot_invoice_url'),
+                    mini_app_invoice_url=api_response.get('mini_app_invoice_url'),
+                    description=description,
+                    payload_data={
+                        "user_id": user_id,
+                        "type": "deposit",
+                        "amount": amount,
+                        "asset": asset
+                    },
+                    expires_at=datetime.utcnow() + timedelta(hours=1)
+                )
+                
+                stored_invoice = await invoice_repo.create_invoice(invoice_data)
+                if stored_invoice:
+                    logger.info(f"Invoice {api_response['invoice_id']} stored in database for user {user_id}")
+                else:
+                    logger.error(f"Failed to store invoice {api_response['invoice_id']} in database")
+                    
+            except Exception as e:
+                logger.error(f"Error storing invoice in database: {e}")
+        
+        return api_response
     
     async def create_order_invoice(
         self,
@@ -298,7 +361,7 @@ class CryptoPayService:
         asset: str = "USDT",
         description: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Create an invoice for an order."""
+        """Create an invoice for an order and store in database."""
         if not description:
             description = f"Payment for order #{order_id}"
         
@@ -310,7 +373,8 @@ class CryptoPayService:
             "asset": asset
         })
         
-        return await self.create_invoice(
+        # Create invoice via API
+        api_response = await self.create_invoice(
             amount=amount,
             asset=asset,
             description=description,
@@ -319,6 +383,45 @@ class CryptoPayService:
             paid_btn_url="https://t.me/your_bot_username",  # Replace with your bot username
             expires_in=1800  # 30 minutes
         )
+        
+        # Store invoice in database
+        if api_response and api_response.get('invoice_id'):
+            try:
+                from app.db.invoice_repository import invoice_repo
+                from app.models.invoice import InvoiceCreate, InvoiceType
+                from datetime import datetime, timedelta
+                
+                invoice_data = InvoiceCreate(
+                    invoice_id=api_response['invoice_id'],
+                    user_id=user_id,
+                    type=InvoiceType.ORDER,
+                    amount=amount,
+                    asset=asset,
+                    currency_type="crypto",
+                    bot_invoice_url=api_response.get('bot_invoice_url'),
+                    mini_app_invoice_url=api_response.get('mini_app_invoice_url'),
+                    description=description,
+                    order_id=order_id,
+                    payload_data={
+                        "user_id": user_id,
+                        "type": "order",
+                        "order_id": order_id,
+                        "amount": amount,
+                        "asset": asset
+                    },
+                    expires_at=datetime.utcnow() + timedelta(minutes=30)
+                )
+                
+                stored_invoice = await invoice_repo.create_invoice(invoice_data)
+                if stored_invoice:
+                    logger.info(f"Order invoice {api_response['invoice_id']} stored in database for user {user_id}")
+                else:
+                    logger.error(f"Failed to store order invoice {api_response['invoice_id']} in database")
+                    
+            except Exception as e:
+                logger.error(f"Error storing order invoice in database: {e}")
+        
+        return api_response
 
 
 # Service instance
