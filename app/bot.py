@@ -2,6 +2,9 @@
 
 import asyncio
 import logging
+import os
+import tempfile
+from pathlib import Path
 from typing import List
 from pyrogram import Client
 from pyrogram.errors import FloodWait, ApiIdInvalid, AuthKeyUnregistered
@@ -24,12 +27,55 @@ class TelegramShopBot:
         self.active_clients: List[Client] = []
         self.is_running = False
     
+    def _ensure_session_directory(self):
+        """Ensure session directory exists and is writable."""
+        try:
+            # Try to create the configured session directory
+            session_path = Path(settings.session_dir)
+            session_path.mkdir(parents=True, exist_ok=True)
+            
+            # Test write access
+            test_file = session_path / ".write_test"
+            test_file.write_text("test")
+            test_file.unlink()
+            
+            logger.info(f"✅ Session directory ready: {session_path.absolute()}")
+            return str(session_path)
+            
+        except (PermissionError, OSError) as e:
+            logger.warning(f"⚠️ Cannot write to {settings.session_dir}: {e}")
+            
+            # Fallback to temporary directory
+            try:
+                temp_session_dir = Path(tempfile.gettempdir()) / "telegram_bot_sessions"
+                temp_session_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Test write access
+                test_file = temp_session_dir / ".write_test"
+                test_file.write_text("test")
+                test_file.unlink()
+                
+                logger.info(f"✅ Using temp session directory: {temp_session_dir.absolute()}")
+                return str(temp_session_dir)
+                
+            except (PermissionError, OSError) as temp_e:
+                logger.warning(f"⚠️ Cannot write to temp directory: {temp_e}")
+                
+                # Final fallback to current directory
+                current_dir = Path.cwd() / ".sessions"
+                current_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"✅ Using current directory for sessions: {current_dir.absolute()}")
+                return str(current_dir)
+
     async def initialize(self):
         """Initialize bot clients and database."""
         logger.info("Initializing Telegram Shop Bot...")
         
         # Connect to database
         await db.connect()
+        
+        # Ensure session directory exists and is writable
+        session_dir = self._ensure_session_directory()
         
         # Create bot clients
         for i, token in enumerate(settings.bot_tokens):
@@ -39,7 +85,7 @@ class TelegramShopBot:
                     bot_token=token,
                     api_id=settings.api_id,
                     api_hash=settings.api_hash,
-                    workdir="sessions"
+                    workdir=session_dir
                 )
                 
                 # Register handlers for this client

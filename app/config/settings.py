@@ -38,6 +38,9 @@ class Settings(BaseModel):
     log_level: str = Field(default="INFO")
     log_file: str = Field(default="bot.log")
     
+    # Session Files
+    session_dir: str = Field(default="sessions")
+    
     # Environment
     environment: str = Field(default="development")
     
@@ -107,6 +110,7 @@ def _load_settings():
         rate_limit_window=int(os.getenv("RATE_LIMIT_WINDOW", "60")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_file=os.getenv("LOG_FILE", "bot.log"),
+        session_dir=os.getenv("SESSION_DIR", "sessions"),
         environment=os.getenv("ENVIRONMENT", "development"),
         admin_startup_message=os.getenv("ADMIN_STARTUP_MESSAGE"),
         crypto_pay_token=os.getenv("CRYPTO_PAY_TOKEN"),
