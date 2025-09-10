@@ -20,6 +20,8 @@ from app.keyboards import (
 from app.i18n import translator, get_user_language
 from app.utils.rate_limiter import rate_limiter
 from app.utils.validators import validate_amount
+from app.utils.user_activity import user_activity_tracker
+from app.services.balance_service import balance_service
 from app.models import UserRole
 import logging
 
@@ -66,7 +68,24 @@ async def start_handler(client: Client, message: Message):
             return
         
         lang = get_user_language(user)
-        welcome_text = translator.get_text("start.welcome", lang)
+        
+        # Check if user should see automatic balance display
+        show_balance = await user_activity_tracker.should_show_balance(user_id)
+        
+        if show_balance:
+            # User was inactive for 5+ minutes, show balance notification
+            balance_text = await balance_service.get_quick_balance_notification(user_id)
+            if balance_text:
+                welcome_text = balance_text + "\n\n" + translator.get_text("start.welcome", lang)
+            else:
+                welcome_text = translator.get_text("start.welcome", lang)
+        else:
+            # Regular start message
+            welcome_text = translator.get_text("start.welcome", lang)
+        
+        # Always update activity tracker
+        await user_activity_tracker.update_activity(user_id)
+        
         keyboard = get_main_menu_keyboard(user)
         
         await message.reply_text(welcome_text, reply_markup=keyboard)
@@ -92,6 +111,21 @@ async def main_menu_callback(client: Client, callback_query: CallbackQuery):
             return
         
         lang = get_user_language(user)
+        
+        # Check if user should see automatic balance display before updating activity
+        show_balance = await user_activity_tracker.should_show_balance(user_id)
+        
+        # Update user activity for all interactions (this also resets the timer)
+        await user_activity_tracker.update_activity(user_id)
+        
+        # Show balance notification if user was inactive
+        if show_balance:
+            balance_text = await balance_service.get_quick_balance_notification(user_id)
+            if balance_text:
+                # Send balance notification as a separate message
+                await callback_query.message.reply_text(balance_text)
+                logger.info(f"Sent balance notification to user {user_id}")
+            
         
         if data == "order_products":
             text = translator.get_text("location.choose_city", lang)
@@ -128,7 +162,7 @@ async def main_menu_callback(client: Client, callback_query: CallbackQuery):
             await show_cart(callback_query, user)
             
         elif data == "check_balance":
-            await show_balance(callback_query, user)
+            await show_detailed_balance(callback_query, user)
             
         elif data == "my_orders":
             await show_user_orders(callback_query, user)
@@ -205,10 +239,10 @@ async def area_selection_callback(client: Client, callback_query: CallbackQuery)
         # Get products for this location
         city_enum = City(city)
         area_enum = Area(area)
-        all_products = await product_repo.get_products_by_location(city_enum, area_enum)
+        products = await product_repo.get_products_by_location(city_enum, area_enum)
         
-        # Filter out products with 0 stock (only show available products)
-        products = [product for product in all_products if product.quantity > 0]
+        # Only show active products (no quantity check needed)
+        products = [product for product in products if product.is_active]
         
         if not products:
             text = f"📍 **{city}, {area}**\n\n"
@@ -255,10 +289,20 @@ async def add_to_cart_callback(client: Client, callback_query: CallbackQuery):
         user = await user_repo.get_by_tg_id(user_id)
         lang = get_user_language(user)
         
+        # Check and send balance notification if user was inactive
+        show_balance = await user_activity_tracker.should_show_balance(user_id)
+        await user_activity_tracker.update_activity(user_id)
+        
+        if show_balance:
+            balance_text = await balance_service.get_quick_balance_notification(user_id)
+            if balance_text:
+                await callback_query.message.reply_text(balance_text)
+                logger.info(f"Sent balance notification to user {user_id}")
+        
         # Get product
         product = await product_repo.get_by_id(product_id)
-        if not product or not product.is_active or product.quantity <= 0:
-            await callback_query.answer(translator.get_text("products.out_of_stock", lang))
+        if not product or not product.is_active:
+            await callback_query.answer("🚫 This product is currently unavailable")
             return
         
         # Add to cart
@@ -266,7 +310,8 @@ async def add_to_cart_callback(client: Client, callback_query: CallbackQuery):
         if success:
             await callback_query.answer(translator.get_text("cart.item_added", lang))
         else:
-            await callback_query.answer(translator.get_text("products.out_of_stock", lang))
+            # This should not happen anymore since we filter by is_active, but just in case
+            await callback_query.answer("🚫 This product is currently unavailable")
         
     except Exception as e:
         logger.error(f"Error adding to cart: {e}")
@@ -330,7 +375,11 @@ async def show_cart(callback_query: CallbackQuery, user):
     except Exception as e:
         logger.error(f"Error showing cart: {e}")
         try:
-            await callback_query.answer("❌ An error occurred")
+            # Show proper empty cart message instead of error
+            text = "🛒 **Your cart is empty**\n\n"
+            text += "Add some products to your cart to get started!"
+            keyboard = get_main_menu_keyboard(user)
+            await safe_edit_message(callback_query, text, keyboard)
         except Exception as answer_error:
             logger.error(f"Failed to send error answer: {answer_error}")
             pass
@@ -762,3 +811,35 @@ async def cart_item_action_callback(client: Client, callback_query: CallbackQuer
     except Exception as e:
         logger.error(f"Error in cart item action: {e}")
         await callback_query.answer("❌ An error occurred")
+
+
+async def show_detailed_balance(callback_query: CallbackQuery, user):
+    """Show user's detailed balance with EUR conversion."""
+    try:
+        # Get detailed balance display with EUR conversion
+        balance_text = await balance_service.format_balance_display(user.tg_id, show_detailed=True)
+        
+        # Create action keyboard
+        from app.keyboards.base import BaseKeyboardBuilder
+        builder = BaseKeyboardBuilder()
+        
+        # Crypto-focused action buttons
+        builder.add_buttons_row([
+            {"text": "💳 Crypto Deposit", "callback_data": "crypto_deposit"},
+            {"text": "📊 Crypto Rates", "callback_data": "crypto_rates"}
+        ])
+        
+        builder.add_buttons_row([
+            {"text": "🛍️ Browse Products", "callback_data": "order_products"},
+            {"text": "🛒 Check Cart", "callback_data": "my_cart"}
+        ])
+        
+        builder.add_back_button("back_to_main")
+        
+        keyboard = builder.build()
+        
+        await safe_edit_message(callback_query, balance_text, keyboard)
+        
+    except Exception as e:
+        logger.error(f"Error showing detailed balance: {e}")
+        await callback_query.answer("❌ Error loading balance")

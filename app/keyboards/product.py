@@ -51,7 +51,7 @@ def get_product_details_keyboard(
     lang = get_user_language(user)
     builder = BaseKeyboardBuilder()
     
-    if show_add_to_cart and product.quantity > 0:
+    if show_add_to_cart and product.is_active:
         builder.add_button(
             _("products.add_to_cart", lang),
             f"add_to_cart:{product.id}"

@@ -65,8 +65,7 @@ class Product(BaseModel):
     name: str = Field(..., description="Product name")
     description: str = Field(..., description="Product description")
     photos: List[str] = Field(default_factory=list, description="Product photo URLs/file_ids")
-    price: float = Field(..., description="Product price in EUR")
-    quantity: int = Field(default=0, description="Available quantity")
+    price: float = Field(..., description="Product price in USDT")
     city: City = Field(..., description="City where product is available")
     area: Area = Field(..., description="Area where product is available")
     is_active: bool = Field(default=True, description="Whether product is active")
@@ -85,7 +84,6 @@ class ProductCreate(BaseModel):
     description: str
     photos: List[str] = []
     price: float
-    quantity: int = 0
     city: City
     area: Area
     is_active: bool = True
@@ -97,7 +95,6 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     photos: Optional[List[str]] = None
     price: Optional[float] = None
-    quantity: Optional[int] = None
     city: Optional[City] = None
     area: Optional[Area] = None
     is_active: Optional[bool] = None

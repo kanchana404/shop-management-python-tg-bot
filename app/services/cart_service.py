@@ -41,27 +41,19 @@ class CartService:
     async def add_item(self, user_id: int, product: Product, quantity: int = 1) -> bool:
         """Add item to cart."""
         try:
-            logger.info(f"Adding item to cart: product={product.name}, quantity={quantity}, available_stock={product.quantity}")
+            logger.info(f"Adding item to cart: product={product.name}, quantity={quantity}")
             cart = await self.get_or_create_cart(user_id)
             
             # Check if item already exists in cart
             for item in cart.items:
                 if item.product_id == str(product.id):
-                    # Update quantity
+                    # Update quantity (no stock limit since we removed quantity field)
                     new_quantity = item.quantity + quantity
-                    if new_quantity > product.quantity:
-                        logger.warning(f"Not enough stock for update: requested={new_quantity}, available={product.quantity}")
-                        return False  # Not enough stock
-                    
                     item.quantity = new_quantity
                     item.total_price = item.price * item.quantity
                     break
             else:
-                # Add new item
-                if quantity > product.quantity:
-                    logger.warning(f"Not enough stock: requested={quantity}, available={product.quantity}")
-                    return False  # Not enough stock
-                
+                # Add new item (no stock check needed)
                 cart_item = CartItem(
                     product_id=str(product.id),
                     product_name=product.name,
@@ -191,7 +183,7 @@ class CartService:
         
         for item in cart.items:
             product = await product_repo.get_by_id(item.product_id)
-            if not product or not product.is_active or product.quantity < item.quantity:
+            if not product or not product.is_active:
                 unavailable_items.append(item.product_name)
         
         return unavailable_items

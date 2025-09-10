@@ -168,6 +168,26 @@ async def send_broadcast_message(message_text: str, photo_url: str = None):
         logger.error(f"Error in broadcast job: {e}")
 
 
+async def check_inactive_users():
+    """Check for inactive users and send balance reminders."""
+    try:
+        from app.services.inactive_user_service import inactive_user_service
+        from app.bot import bot
+        
+        if not bot.active_clients:
+            logger.warning("⚠️ No active bot clients for inactive user check")
+            return
+            
+        # Use the first available bot client
+        client = bot.active_clients[0]
+        
+        # Run the inactive user check
+        await inactive_user_service.check_and_notify_inactive_users(client)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in check_inactive_users job: {e}")
+
+
 def setup_scheduled_jobs():
     """Set up all scheduled jobs."""
     try:
@@ -184,6 +204,14 @@ def setup_scheduled_jobs():
             cleanup_expired_deposits,
             CronTrigger(minute=0),
             id='cleanup_deposits',
+            replace_existing=True
+        )
+        
+        # Inactive user check job (every minute)
+        scheduler.add_job(
+            check_inactive_users,
+            CronTrigger(second=0),  # Every minute at :00 seconds
+            id='check_inactive_users',
             replace_existing=True
         )
         
@@ -228,6 +256,7 @@ def cancel_scheduled_job(job_id: str) -> bool:
 
 # Set up jobs when module is imported
 setup_scheduled_jobs()
+
 
 
 

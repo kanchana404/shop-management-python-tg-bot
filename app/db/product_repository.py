@@ -72,43 +72,25 @@ class ProductRepository(BaseRepository[Product]):
         )
     
     async def get_low_stock_products(self, threshold: int = 5) -> List[Product]:
-        """Get products with low stock."""
-        return await self.get_many({
-            "quantity": {"$lte": threshold},
-            "is_active": True
-        })
+        """Get products with low stock - DEPRECATED: No longer using quantity field."""
+        # Since we removed quantity field, this method is no longer relevant
+        # Return empty list as all products are either available or not shown
+        return []
+    
     
     async def update_product_quantity(self, product_id: str, quantity: int) -> Optional[Product]:
-        """Update product quantity."""
-        result = await self.collection.update_one(
-            {"_id": self._to_object_id(product_id)},
-            {"$set": {"quantity": quantity, "updated_at": self._utcnow()}}
-        )
-        
-        if result.modified_count:
-            return await self.get_by_id(product_id)
+        """Update product quantity - DEPRECATED: No longer using quantity field."""
+        # Since we removed quantity field, this method is no longer relevant
         return None
     
     async def decrease_quantity(self, product_id: str, amount: int) -> Optional[Product]:
-        """Decrease product quantity."""
-        result = await self.collection.update_one(
-            {"_id": self._to_object_id(product_id), "quantity": {"$gte": amount}},
-            {"$inc": {"quantity": -amount}, "$set": {"updated_at": self._utcnow()}}
-        )
-        
-        if result.modified_count:
-            return await self.get_by_id(product_id)
+        """Decrease product quantity - DEPRECATED: No longer using quantity field."""
+        # Since we removed quantity field, this method is no longer relevant
         return None
     
     async def increase_quantity(self, product_id: str, amount: int) -> Optional[Product]:
-        """Increase product quantity."""
-        result = await self.collection.update_one(
-            {"_id": self._to_object_id(product_id)},
-            {"$inc": {"quantity": amount}, "$set": {"updated_at": self._utcnow()}}
-        )
-        
-        if result.modified_count:
-            return await self.get_by_id(product_id)
+        """Increase product quantity - DEPRECATED: No longer using quantity field."""
+        # Since we removed quantity field, this method is no longer relevant
         return None
     
     async def bulk_update_prices(self, price_multiplier: float, filter_dict: dict = None) -> int:

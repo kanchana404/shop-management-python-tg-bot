@@ -12,6 +12,7 @@ from app.i18n import translator, get_user_language
 from app.utils.rate_limiter import rate_limiter
 from app.utils.validators import validate_amount
 from app.utils.user_state import user_state_manager, UserStates
+from app.config.crypto_limits import get_crypto_minimum, get_crypto_maximum, validate_crypto_amount, format_crypto_minimum
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,17 @@ async def crypto_deposit_callback(client: Client, callback_query: CallbackQuery)
         user_id = callback_query.from_user.id
         user = await user_repo.get_by_tg_id(user_id)
         lang = get_user_language(user)
+        
+        # Check and send balance notification if user was inactive
+        show_balance = await user_activity_tracker.should_show_balance(user_id)
+        await user_activity_tracker.update_activity(user_id)
+        
+        if show_balance:
+            from app.services.balance_service import balance_service
+            balance_text = await balance_service.get_quick_balance_notification(user_id)
+            if balance_text:
+                await callback_query.message.reply_text(balance_text)
+                logger.info(f"Sent balance notification to user {user_id}")
         
         try:
             text = translator.get_text("crypto.choose_asset", lang)
@@ -82,8 +94,8 @@ async def crypto_asset_selection_callback(client: Client, callback_query: Callba
             text = f"💰 Enter amount for {asset} deposit:"
         
         text += f"\n\n💡 Supported: {asset}"
-        text += f"\n💰 Minimum: 1 {asset}"
-        text += f"\n💳 Maximum: 10000 {asset}"
+        text += f"\n💰 Minimum: {format_crypto_minimum(asset)}"
+        text += f"\n💳 Maximum: {get_crypto_maximum(asset)} {asset}"
         text += f"\n\n📝 **Please send the amount you want to deposit.**"
         
         # Set user state for amount input
@@ -147,12 +159,10 @@ async def crypto_deposit_amount_handler(client: Client, message: Message):
             await message.reply_text("❌ Please enter a valid amount (e.g., 10.5)")
             return
         
-        # Validate amount
-        if amount < 1:
-            await message.reply_text(f"❌ Minimum deposit amount is 1 {asset}")
-            return
-        if amount > 10000:
-            await message.reply_text(f"❌ Maximum deposit amount is 10,000 {asset}")
+        # Validate amount using realistic crypto minimums
+        is_valid, error_message = validate_crypto_amount(amount, asset)
+        if not is_valid:
+            await message.reply_text(error_message)
             return
         
         # Clear user state since we're processing the amount

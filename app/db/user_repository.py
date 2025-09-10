@@ -1,5 +1,6 @@
 """User repository."""
 
+import logging
 from typing import List, Optional
 from .base_repository import BaseRepository
 from .database import db
@@ -151,6 +152,24 @@ class UserRepository(BaseRepository[User]):
         """Get current UTC datetime."""
         from datetime import datetime
         return datetime.utcnow()
+    
+    async def update_user_activity(self, user_id: int):
+        """Update user's last activity timestamp (updated_at field)."""
+        try:
+            collection = self._get_collection()
+            result = await collection.update_one(
+                {"tg_id": user_id},
+                {"$set": {"updated_at": self._utcnow()}}
+            )
+            
+            if result.modified_count > 0:
+                logging.debug(f"Updated activity timestamp for user {user_id}")
+            else:
+                logging.warning(f"User {user_id} not found when updating activity")
+                
+        except Exception as e:
+            logging.error(f"Error updating user activity for {user_id}: {e}")
+            raise
 
 
 # Repository instance

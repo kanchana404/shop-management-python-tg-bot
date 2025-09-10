@@ -29,10 +29,10 @@ def get_main_menu_keyboard(user=None) -> InlineKeyboardMarkup:
         {"text": _("start.my_cart", lang), "callback_data": "my_cart"}
     ])
     
-    # Fourth row - Orders and Crypto Wallet
+    # Fourth row - Orders and Balance
     builder.add_buttons_row([
         {"text": "📦 My Orders", "callback_data": "my_orders"},
-        {"text": "🪙 My Crypto Wallet", "callback_data": "check_balance"}
+        {"text": "💰 Balance", "callback_data": "check_balance"}
     ])
     
     return builder.build()

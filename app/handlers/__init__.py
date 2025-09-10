@@ -22,6 +22,8 @@ from .crypto_payment_handlers import (
     crypto_balance_callback,
     crypto_rates_callback
 )
+from .crypto_limits_handler import cryptolimits_command_handler
+from .activity_admin import activity_command_handler
 from .admin_handlers import (
     admin_command_handler,
     admin_main_callback,
@@ -133,6 +135,12 @@ def register_admin_handlers(app: Client):
     
     # Announcement commands
     app.add_handler(MessageHandler(broadcast_command_handler, filters.command("broadcast")))
+    
+    # Crypto limits command
+    app.add_handler(MessageHandler(cryptolimits_command_handler, filters.command("cryptolimits")))
+    
+    # Activity tracking command
+    app.add_handler(MessageHandler(activity_command_handler, filters.command("activity")))
     
     # Admin main menu callbacks (including close_admin)
     app.add_handler(CallbackQueryHandler(admin_main_callback, filters.regex(r"^(admin_products|admin_orders|admin_users|admin_announcements|admin_settings|admin_metrics|admin_revenue|admin_reports|close_admin)$")))
