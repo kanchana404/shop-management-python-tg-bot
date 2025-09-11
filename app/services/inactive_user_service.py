@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from typing import List
 from app.db.user_repository import user_repo
 from app.models import User
-from app.services.balance_service import balance_service
 from pyrogram import Client
 
 logger = logging.getLogger(__name__)
@@ -46,8 +45,7 @@ class InactiveUserService:
                     success = await self._send_balance_reminder(bot_client, user)
                     if success:
                         notifications_sent += 1
-                        # Update user activity to prevent spam
-                        await user_repo.update_user_activity(user.tg_id)
+                        # Note: We don't update user activity here - reminder_sent flag prevents spam
                         
                 except Exception as e:
                     logger.error(f"❌ Failed to send reminder to user {user.tg_id}: {e}")
@@ -76,8 +74,12 @@ class InactiveUserService:
             return []
     
     async def _is_user_inactive(self, user: User, current_time: datetime) -> bool:
-        """Check if user is inactive based on updated_at timestamp."""
+        """Check if user is inactive and hasn't received reminder yet."""
         if not user.updated_at:
+            return False
+            
+        # Skip if reminder was already sent
+        if getattr(user, 'reminder_sent', False):
             return False
             
         inactive_duration = current_time - user.updated_at
@@ -89,23 +91,24 @@ class InactiveUserService:
         return is_inactive
     
     async def _send_balance_reminder(self, bot_client: Client, user: User) -> bool:
-        """Send balance reminder to inactive user."""
+        """Send inactivity reminder to user."""
         try:
-            # Get user's balance notification
-            balance_text = await balance_service.get_quick_balance_notification(user.tg_id)
+            # Send the resource-saving reminder message
+            reminder_message = (
+                "I haven't received any message in a while so close the conversation to save resource "
+                "if you want to start a new one send a new /start command"
+            )
             
-            if balance_text:
-                # Send the balance reminder
-                await bot_client.send_message(
-                    chat_id=user.tg_id,
-                    text=f"👋 Welcome back! You've been away for a while.\n\n{balance_text}"
-                )
-                
-                logger.info(f"💰 Sent balance reminder to user {user.tg_id} ({user.first_name})")
-                return True
-            else:
-                logger.debug(f"⚠️ No balance info for user {user.tg_id}")
-                return False
+            await bot_client.send_message(
+                chat_id=user.tg_id,
+                text=reminder_message
+            )
+            
+            # Mark reminder as sent in database
+            await user_repo.set_reminder_sent(user.tg_id)
+            
+            logger.info(f"📤 Sent inactivity reminder to user {user.tg_id} ({user.first_name})")
+            return True
                 
         except Exception as e:
             logger.error(f"Failed to send reminder to user {user.tg_id}: {e}")

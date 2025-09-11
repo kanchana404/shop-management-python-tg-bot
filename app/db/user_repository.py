@@ -154,12 +154,15 @@ class UserRepository(BaseRepository[User]):
         return datetime.utcnow()
     
     async def update_user_activity(self, user_id: int):
-        """Update user's last activity timestamp (updated_at field)."""
+        """Update user's last activity timestamp and reset reminder status."""
         try:
             collection = self._get_collection()
             result = await collection.update_one(
                 {"tg_id": user_id},
-                {"$set": {"updated_at": self._utcnow()}}
+                {"$set": {
+                    "updated_at": self._utcnow(),
+                    "reminder_sent": False  # Reset reminder status when user becomes active
+                }}
             )
             
             if result.modified_count > 0:
@@ -169,6 +172,24 @@ class UserRepository(BaseRepository[User]):
                 
         except Exception as e:
             logging.error(f"Error updating user activity for {user_id}: {e}")
+            raise
+
+    async def set_reminder_sent(self, user_id: int):
+        """Mark that inactivity reminder was sent to user."""
+        try:
+            collection = self._get_collection()
+            result = await collection.update_one(
+                {"tg_id": user_id},
+                {"$set": {"reminder_sent": True}}
+            )
+            
+            if result.modified_count > 0:
+                logging.debug(f"Marked reminder as sent for user {user_id}")
+            else:
+                logging.warning(f"User {user_id} not found when setting reminder status")
+                
+        except Exception as e:
+            logging.error(f"Error setting reminder sent status for {user_id}: {e}")
             raise
 
 

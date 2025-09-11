@@ -35,6 +35,7 @@ class User(BaseModel):
     ban_reason: Optional[str] = Field(None, description="Reason for ban")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    reminder_sent: bool = Field(default=False)  # Track if inactivity reminder was sent
     
     class Config:
         """Pydantic config."""
@@ -61,4 +62,5 @@ class UserUpdate(BaseModel):
     roles: Optional[List[UserRole]] = None
     is_banned: Optional[bool] = None
     ban_reason: Optional[str] = None
+    reminder_sent: Optional[bool] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)

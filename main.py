@@ -21,15 +21,25 @@ def setup_logging():
     log_path = Path(settings.log_file).parent
     log_path.mkdir(exist_ok=True)
     
-    # Configure logging
+    # Configure logging with UTF-8 encoding
     logging.basicConfig(
         level=getattr(logging, settings.log_level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.FileHandler(settings.log_file),
+            logging.FileHandler(settings.log_file, encoding='utf-8'),
             logging.StreamHandler(sys.stdout)
         ]
     )
+    
+    # Set console encoding for Windows
+    if sys.platform.startswith('win'):
+        try:
+            import codecs
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+        except Exception:
+            # Fallback: remove emojis from console logs
+            pass
     
     # Set specific log levels for noisy libraries
     logging.getLogger("pyrogram").setLevel(logging.WARNING)
@@ -71,6 +81,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
