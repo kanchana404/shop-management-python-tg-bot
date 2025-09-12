@@ -1,9 +1,12 @@
 """Product repository."""
 
+import logging
 from typing import List, Optional
 from .base_repository import BaseRepository
 from .database import db
 from app.models import Product, ProductCreate, ProductUpdate, ProductFilter, City, Area
+
+logger = logging.getLogger(__name__)
 
 
 class ProductRepository(BaseRepository[Product]):
@@ -79,9 +82,20 @@ class ProductRepository(BaseRepository[Product]):
     
     
     async def update_product_quantity(self, product_id: str, quantity: int) -> Optional[Product]:
-        """Update product quantity - DEPRECATED: No longer using quantity field."""
-        # Since we removed quantity field, this method is no longer relevant
-        return None
+        """Update product quantity (admin functionality)."""
+        try:
+            collection = self._get_collection()
+            result = await collection.update_one(
+                {"_id": self._to_object_id(product_id)},
+                {"$set": {"quantity": quantity, "updated_at": self._utcnow()}}
+            )
+            
+            if result.modified_count:
+                return await self.get_by_id(product_id)
+            return None
+        except Exception as e:
+            logger.error(f"Error updating product quantity: {e}")
+            return None
     
     async def decrease_quantity(self, product_id: str, amount: int) -> Optional[Product]:
         """Decrease product quantity - DEPRECATED: No longer using quantity field."""

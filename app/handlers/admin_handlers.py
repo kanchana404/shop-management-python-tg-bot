@@ -244,9 +244,10 @@ async def admin_products_callback(client: Client, callback_query: CallbackQuery)
             text = (
                 "➕ **Add New Product**\n\n"
                 "Please send product details in this format:\n\n"
-                "`/addproduct Name|Description|Price|Stock|City|Area`\n\n"
+                "`/addproduct Name|Description|Price|City|Area`\n\n"
                 "Example:\n"
-                "`/addproduct iPhone 15|Latest iPhone model|999.99|10|Belgrade|Vracar`"
+                "`/addproduct iPhone 15|Latest iPhone model|999.99|Belgrade|Vracar`\n\n"
+                "💡 **Note:** Products are active by default. Use admin panel to deactivate if needed."
             )
             
         elif data == "admin_list_products":
@@ -258,9 +259,10 @@ async def admin_products_callback(client: Client, callback_query: CallbackQuery)
                 for product in products:
                     status = "✅ Active" if product.is_active else "❌ Inactive"
                     text += f"**{product.name}**\n"
-                    text += f"Price: USDT{product.price} | Stock: {product.quantity}\n"
-                    text += f"Location: {getattr(product.city, 'value', product.city)}, {getattr(product.area, 'value', product.area)}\n"
-                    text += f"Status: {status}\n\n"
+                    text += f"🆔 **ID:** `{product.id}`\n"
+                    text += f"💰 **Price:** USDT{product.price}\n"
+                    text += f"📍 **Location:** {getattr(product.city, 'value', product.city)}, {getattr(product.area, 'value', product.area)}\n"
+                    text += f"📊 **Status:** {status}\n\n"
             
         elif data == "admin_bulk_prices":
             text = (
@@ -532,14 +534,14 @@ async def admin_manage_order_callback(client: Client, callback_query: CallbackQu
         elif data.startswith("admin_order_action:"):
             # Handle order status changes
             _, action, order_id = data.split(":", 2)
-            await handle_order_action(callback_query, action, order_id)
+            await handle_order_action(client, callback_query, action, order_id)
             
     except Exception as e:
         logger.error(f"Error in admin manage order callback: {e}")
         await callback_query.answer("❌ An error occurred", show_alert=True)
 
 
-async def handle_order_action(callback_query: CallbackQuery, action: str, order_id: str):
+async def handle_order_action(client: Client, callback_query: CallbackQuery, action: str, order_id: str):
     """Handle order status change actions."""
     try:
         order = await order_service.get_order_by_id(order_id)
@@ -589,7 +591,7 @@ async def handle_order_action(callback_query: CallbackQuery, action: str, order_
                 data=f"admin_manage_order:{order_id}",
                 chat_instance=callback_query.chat_instance
             )
-            await admin_manage_order_callback(callback_query.client, refresh_callback)
+            await admin_manage_order_callback(client, refresh_callback)
         else:
             await callback_query.answer("❌ Failed to update order", show_alert=True)
             
@@ -994,7 +996,7 @@ async def admin_reports_callback(client: Client, callback_query: CallbackQuery):
             )
             
             for order in recent_orders:
-                text += f"• #{order.id[:8]} - USDT{order.total_amount:.2f} - {order.status.value}\n"
+                text += f"• #{order.id[:8]} - USDT{order.total_amount:.2f} - {get_status_value(order.status)}\n"
             
         elif data == "admin_report_users":
             total_users = await user_repo.count({})
@@ -1166,30 +1168,29 @@ async def addproduct_command_handler(client: Client, message: Message):
             await message.reply_text("❌ Access denied. You don't have admin privileges.")
             return
         
-        # Parse command: /addproduct Name|Description|Price|Stock|City|Area
+        # Parse command: /addproduct Name|Description|Price|City|Area
         command_parts = message.text.split(' ', 1)
         if len(command_parts) < 2:
             await message.reply_text(
                 "❌ **Invalid format!**\n\n"
-                "Use: `/addproduct Name|Description|Price|Stock|City|Area`\n\n"
+                "Use: `/addproduct Name|Description|Price|City|Area`\n\n"
                 "Example:\n"
-                "`/addproduct iPhone 15|Latest iPhone model|999.99|10|Belgrade|Vracar`"
+                "`/addproduct iPhone 15|Latest iPhone model|999.99|Belgrade|Vracar`"
             )
             return
         
         # Parse product data
         try:
             product_data = command_parts[1].split('|')
-            if len(product_data) != 6:
+            if len(product_data) != 5:
                 raise ValueError("Incorrect number of parameters")
             
-            name, description, price_str, stock_str, city_str, area_str = product_data
+            name, description, price_str, city_str, area_str = product_data
             
             # Validate and convert data
             name = name.strip()
             description = description.strip()
             price = float(price_str.strip())
-            stock = int(stock_str.strip())
             city_str = city_str.strip()
             area_str = area_str.strip()
             
@@ -1285,7 +1286,6 @@ async def addproduct_command_handler(client: Client, message: Message):
                 name=name,
                 description=description,
                 price=price,
-                quantity=stock,
                 city=city,
                 area=area,
                 is_active=True
@@ -1300,7 +1300,6 @@ async def addproduct_command_handler(client: Client, message: Message):
                     f"**Name:** {product.name}\n"
                     f"**Description:** {product.description}\n"
                     f"**Price:** USDT{product.price:.2f}\n"
-                    f"**Stock:** {product.quantity}\n"
                     f"**Location:** {getattr(product.city, 'value', product.city)}, {getattr(product.area, 'value', product.area)}\n"
                     f"**Status:** {'✅ Active' if product.is_active else '❌ Inactive'}\n"
                     f"**Product ID:** `{product.id}`"
@@ -1436,9 +1435,9 @@ async def updatestock_command_handler(client: Client, message: Message):
                 await message.reply_text(f"❌ Product with ID `{product_id}` not found")
                 return
             
-            # Update stock
-            old_stock = product.quantity
-            updated_product = await product_repo.update_by_id(product_id, {"quantity": new_stock})
+            # Update stock (admin functionality - not shown to users)
+            old_stock = getattr(product, 'quantity', 0)  # Default to 0 if quantity doesn't exist
+            updated_product = await product_repo.update_product_quantity(product_id, new_stock)
             
             if updated_product:
                 success_text = (
@@ -1882,7 +1881,6 @@ async def export_all_data() -> dict:
                         'name': product.name,
                         'description': product.description,
                         'price': product.price,
-                        'quantity': product.quantity,
                         'city': getattr(product.city, 'value', product.city),
                         'area': getattr(product.area, 'value', product.area),
                         'is_active': product.is_active
