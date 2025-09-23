@@ -28,14 +28,21 @@ class CartService:
         cart_doc = await collection.find_one({"user_id": user_id})
         
         if cart_doc:
+            # Convert ObjectId to string for Pydantic
+            if '_id' in cart_doc and cart_doc['_id'] is not None:
+                cart_doc['_id'] = str(cart_doc['_id'])
             return Cart(**cart_doc)
         
         # Create new cart
         cart = Cart(user_id=user_id)
-        cart_data = cart.model_dump(by_alias=True)  # Don't exclude unset to include items field
+        cart_data = cart.model_dump(by_alias=True, exclude={'id'})  # Exclude id to avoid None _id
         result = await collection.insert_one(cart_data)
         
+        # Fetch the newly created cart document
         cart_doc = await collection.find_one({"_id": result.inserted_id})
+        if cart_doc:
+            # Convert ObjectId to string for Pydantic
+            cart_doc['_id'] = str(cart_doc['_id'])
         return Cart(**cart_doc)
     
     async def add_item(self, user_id: int, product: Product, quantity: int = 1) -> bool:
@@ -187,6 +194,46 @@ class CartService:
                 unavailable_items.append(item.product_name)
         
         return unavailable_items
+    
+    async def cleanup_null_ids(self) -> dict:
+        """Clean up cart documents with null _id values."""
+        try:
+            collection = self._get_collection()
+            
+            # Find documents with null _id
+            null_id_docs = await collection.find({"_id": None}).to_list(None)
+            logger.info(f"Found {len(null_id_docs)} cart documents with null _id")
+            
+            if null_id_docs:
+                # Remove documents with null _id
+                result = await collection.delete_many({"_id": None})
+                logger.info(f"Deleted {result.deleted_count} cart documents with null _id")
+                
+                # Show remaining document count
+                total_count = await collection.count_documents({})
+                logger.info(f"Total remaining cart documents: {total_count}")
+                
+                return {
+                    "deleted_count": result.deleted_count,
+                    "total_remaining": total_count,
+                    "status": "success"
+                }
+            else:
+                logger.info("No cart documents with null _id found")
+                return {
+                    "deleted_count": 0,
+                    "total_remaining": await collection.count_documents({}),
+                    "status": "no_null_docs"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error during cart cleanup: {e}")
+            return {
+                "deleted_count": 0,
+                "total_remaining": 0,
+                "status": "error",
+                "error": str(e)
+            }
 
 
 # Service instance

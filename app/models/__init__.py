@@ -6,6 +6,7 @@ from .cart import Cart, CartItem, CartItemAdd, CartItemUpdate
 from .order import Order, OrderCreate, OrderUpdate, OrderFilter, OrderStatus
 from .deposit import Deposit, DepositCreate, DepositUpdate, CoinType, NetworkType, DepositStatus, COIN_NETWORKS
 from .announcement import Announcement, AnnouncementCreate, AnnouncementUpdate, AnnouncementType, AnnouncementStatus
+from .scheduled_message import ScheduledMessage, ScheduledMessageCreate, ScheduledMessageUpdate
 from .settings import BotSettings, SettingsUpdate, DEFAULT_SETTINGS
 from .audit_log import AuditLog, AuditLogCreate, AuditAction
 from .invoice import Invoice, InvoiceCreate, InvoiceUpdate, InvoiceStatus, InvoiceType
@@ -32,4 +33,6 @@ __all__ = [
     "Invoice", "InvoiceCreate", "InvoiceUpdate", "InvoiceStatus", "InvoiceType",
     # User deposits models
     "UserDeposits", "UserDepositsUpdate", "DepositTransaction",
+    # Scheduled message models
+    "ScheduledMessage", "ScheduledMessageCreate", "ScheduledMessageUpdate",
 ]

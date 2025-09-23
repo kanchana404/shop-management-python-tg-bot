@@ -24,6 +24,7 @@ from .crypto_payment_handlers import (
 )
 from .crypto_limits_handler import cryptolimits_command_handler
 from .activity_admin import activity_command_handler
+from .schedule_command import schedule_command_handler
 from .admin_handlers import (
     admin_command_handler,
     admin_main_callback,
@@ -34,11 +35,13 @@ from .admin_handlers import (
     admin_revenue_callback,
     admin_reports_callback,
     admin_announcements_callback,
+    admin_settings_callback,
     admin_back_callback,
     addproduct_command_handler,
     bulkprice_command_handler,
     updatestock_command_handler,
-    broadcast_command_handler
+    broadcast_command_handler,
+    cleanup_carts_command_handler
 )
 
 import logging
@@ -115,8 +118,8 @@ def register_user_handlers(app: Client):
     app.add_handler(CallbackQueryHandler(crypto_balance_callback, filters.regex(r"^crypto_balance$")))
     app.add_handler(CallbackQueryHandler(crypto_rates_callback, filters.regex(r"^crypto_rates$")))
     
-    # Message handlers for amount input (only for crypto deposit replies)
-    app.add_handler(MessageHandler(crypto_deposit_amount_handler, filters.text))
+    # Message handlers for amount input (optimized to exclude commands)
+    app.add_handler(MessageHandler(crypto_deposit_amount_handler, filters.text & ~filters.regex(r"^/")))
     
     # Debug handler for unhandled callbacks (should be last)
     app.add_handler(CallbackQueryHandler(debug_unhandled_callback, filters.regex(r".*")))
@@ -136,11 +139,17 @@ def register_admin_handlers(app: Client):
     # Announcement commands
     app.add_handler(MessageHandler(broadcast_command_handler, filters.command("broadcast")))
     
+    # Cleanup commands
+    app.add_handler(MessageHandler(cleanup_carts_command_handler, filters.command("cleanupcarts")))
+    
     # Crypto limits command
     app.add_handler(MessageHandler(cryptolimits_command_handler, filters.command("cryptolimits")))
     
     # Activity tracking command
     app.add_handler(MessageHandler(activity_command_handler, filters.command("activity")))
+    
+    # Schedule command
+    app.add_handler(MessageHandler(schedule_command_handler, filters.command("schedule")))
     
     # Admin main menu callbacks (including close_admin)
     app.add_handler(CallbackQueryHandler(admin_main_callback, filters.regex(r"^(admin_products|admin_orders|admin_users|admin_announcements|admin_settings|admin_metrics|admin_revenue|admin_reports|close_admin)$")))
@@ -150,6 +159,9 @@ def register_admin_handlers(app: Client):
     app.add_handler(CallbackQueryHandler(admin_orders_callback, filters.regex(r"^admin_orders_(all|pending|recent)|admin_order_stats$")))
     app.add_handler(CallbackQueryHandler(admin_manage_order_callback, filters.regex(r"^admin_manage_order:|admin_order_action:")))
     app.add_handler(CallbackQueryHandler(admin_users_callback, filters.regex(r"^admin_users_(all|banned|admins)|admin_user_stats$")))
+    
+    # Settings callbacks
+    app.add_handler(CallbackQueryHandler(admin_settings_callback, filters.regex(r"^admin_(support_handle|text_templates|daily_message|bot_settings)$")))
     
     # Announcement callbacks
     app.add_handler(CallbackQueryHandler(admin_announcements_callback, filters.regex(r"^admin_(send_broadcast|schedule_message|view_scheduled|announcement_stats)$")))

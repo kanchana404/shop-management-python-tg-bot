@@ -139,6 +139,16 @@ class TelegramShopBot:
         self.is_running = True
         logger.info(f"Started {len(self.active_clients)} out of {len(self.clients)} bot clients")
         
+        # Log potential issue if multiple clients are active
+        if len(self.active_clients) > 1:
+            logger.warning(f"⚠️ Multiple bot clients active ({len(self.active_clients)}). This may cause duplicate messages!")
+            for i, client in enumerate(self.active_clients):
+                try:
+                    bot_info = await client.get_me()
+                    logger.warning(f"  Active client {i}: @{bot_info.username} (ID: {bot_info.id})")
+                except:
+                    logger.warning(f"  Active client {i}: Could not get bot info")
+        
         # Start scheduler
         if not scheduler.running:
             scheduler.start()

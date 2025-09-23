@@ -1933,6 +1933,124 @@ async def setup_email_reports() -> dict:
 
 
 @rate_limiter
+async def admin_settings_callback(client: Client, callback_query: CallbackQuery):
+    """Handle admin settings callbacks."""
+    try:
+        user_id = callback_query.from_user.id
+        
+        if not await is_admin(user_id):
+            await callback_query.answer("❌ Access denied", show_alert=True)
+            return
+        
+        data = callback_query.data
+        
+        if data == "admin_support_handle":
+            text = (
+                "🆘 **Support Settings**\n\n"
+                "Configure customer support settings:\n\n"
+                "**Current Settings:**\n"
+                "• Support Chat ID: Not configured\n"
+                "• Auto-reply: Disabled\n"
+                "• Working Hours: 24/7\n"
+                "• Response Template: Default\n\n"
+                "**Available Options:**\n"
+                "• Set support chat/channel ID\n"
+                "• Configure working hours\n"
+                "• Customize auto-reply messages\n"
+                "• Set up support ticket system\n\n"
+                "💡 Contact developer to configure support settings."
+            )
+            
+        elif data == "admin_text_templates":
+            text = (
+                "📝 **Text Templates**\n\n"
+                "Customize bot messages and templates:\n\n"
+                "**Available Templates:**\n"
+                "• Welcome message\n"
+                "• Order confirmation\n"
+                "• Payment instructions\n"
+                "• Order status updates\n"
+                "• Support responses\n\n"
+                "**Current Status:**\n"
+                "• Language: English (Default)\n"
+                "• Custom templates: 0\n"
+                "• Multi-language: Enabled\n\n"
+                "Use admin commands to customize templates:\n"
+                "• `/template welcome Your new welcome message`\n"
+                "• `/template order_confirm Your order confirmation text`"
+            )
+            
+        elif data == "admin_daily_message":
+            text = (
+                "📅 **Daily Messages**\n\n"
+                "Configure automated daily messages:\n\n"
+                "**Current Settings:**\n"
+                "• Daily messages: Disabled\n"
+                "• Send time: Not set\n"
+                "• Target audience: All users\n"
+                "• Message template: Not configured\n\n"
+                "**Features:**\n"
+                "• Daily product highlights\n"
+                "• Special offers notifications\n"
+                "• Motivational messages\n"
+                "• Customizable timing\n\n"
+                "**Setup:**\n"
+                "1. Set message time\n"
+                "2. Create message template\n"
+                "3. Choose target audience\n"
+                "4. Enable daily sending\n\n"
+                "💡 Use `/schedule` for one-time messages."
+            )
+            
+        elif data == "admin_bot_settings":
+            text = (
+                "⚙️ **Bot Configuration**\n\n"
+                "Configure core bot settings:\n\n"
+                "**General Settings:**\n"
+                "• Bot Name: Shop Bot\n"
+                "• Default Language: English\n"
+                "• Timezone: UTC\n"
+                "• Rate Limiting: Enabled\n\n"
+                "**Payment Settings:**\n"
+                "• Crypto payments: Enabled\n"
+                "• Supported coins: USDT, BTC, ETH\n"
+                "• Min deposit: $10 USDT\n"
+                "• Auto-convert: Disabled\n\n"
+                "**Order Settings:**\n"
+                "• Auto-confirm: Disabled\n"
+                "• Order timeout: 24 hours\n"
+                "• Max cart items: 10\n"
+                "• Order notifications: Enabled\n\n"
+                "**Security:**\n"
+                "• Admin verification: Required\n"
+                "• User verification: Optional\n"
+                "• Spam protection: Enabled\n"
+                "• Rate limits: 10 req/min\n\n"
+                "Contact developer to modify these settings."
+            )
+            
+        else:
+            await callback_query.answer("❌ Invalid option")
+            return
+        
+        # Add back button
+        from app.keyboards.base import BaseKeyboardBuilder
+        builder = BaseKeyboardBuilder()
+        builder.add_buttons_row([
+            {"text": "🔄 Refresh", "callback_data": data},
+            {"text": "⬅️ Back", "callback_data": "admin_settings"}
+        ])
+        keyboard = builder.build()
+        
+        await callback_query.edit_message_text(text, reply_markup=keyboard)
+        await callback_query.answer()
+        
+    except Exception as e:
+        logger.error(f"Error in admin settings callback: {e}")
+        await callback_query.answer("❌ An error occurred", show_alert=True)
+
+
+@rate_limiter
 async def admin_announcements_callback(client: Client, callback_query: CallbackQuery):
     """Handle admin announcements callbacks."""
     try:
@@ -2029,6 +2147,53 @@ async def admin_announcements_callback(client: Client, callback_query: CallbackQ
     except Exception as e:
         logger.error(f"Error in admin announcements callback: {e}")
         await callback_query.answer("❌ An error occurred", show_alert=True)
+
+
+@rate_limiter
+async def cleanup_carts_command_handler(client: Client, message: Message):
+    """Handle /cleanupcarts command to fix null _id cart documents."""
+    try:
+        user_id = message.from_user.id
+        
+        if not await is_admin(user_id):
+            await message.reply_text("❌ Access denied. You don't have admin privileges.")
+            return
+        
+        await message.reply_text("🔧 **Starting cart cleanup...**\n\nRemoving documents with null _id values...")
+        
+        # Import here to avoid circular imports
+        from app.services.cart_service import cart_service
+        
+        # Run cleanup
+        result = await cart_service.cleanup_null_ids()
+        
+        if result["status"] == "success":
+            response_text = (
+                "✅ **Cart Cleanup Complete!**\n\n"
+                f"🗑️ **Deleted:** {result['deleted_count']} documents with null _id\n"
+                f"📊 **Remaining:** {result['total_remaining']} cart documents\n\n"
+                "The duplicate key error should now be fixed!"
+            )
+        elif result["status"] == "no_null_docs":
+            response_text = (
+                "✅ **Cart Cleanup Complete!**\n\n"
+                f"🔍 **Found:** 0 documents with null _id\n"
+                f"📊 **Total carts:** {result['total_remaining']}\n\n"
+                "No cleanup needed - database is clean!"
+            )
+        else:
+            response_text = (
+                f"❌ **Cart Cleanup Failed!**\n\n"
+                f"**Error:** {result.get('error', 'Unknown error')}\n\n"
+                "Please check the logs for more details."
+            )
+        
+        await message.reply_text(response_text)
+        logger.info(f"Admin {user_id} ran cart cleanup: {result}")
+        
+    except Exception as e:
+        logger.error(f"Error in cleanup carts command handler: {e}")
+        await message.reply_text("❌ An error occurred during cleanup")
 
 
 @rate_limiter

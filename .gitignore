@@ -135,7 +135,6 @@ cython_debug/
 .idea/
 
 # VS Code
-.vscode/
 
 # Project specific
 # Environment variables and secrets
@@ -295,3 +294,7 @@ access_logs/
 # SSL certificates
 ssl/
 certificates/
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
+branch_structure.json
