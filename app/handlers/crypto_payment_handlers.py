@@ -12,6 +12,8 @@ from app.i18n import translator, get_user_language
 from app.utils.rate_limiter import rate_limiter
 from app.utils.validators import validate_amount
 from app.utils.user_state import user_state_manager, UserStates
+from app.utils.user_activity import user_activity_tracker
+from app.utils.message_deduplicator import message_deduplicator
 from app.config.crypto_limits import get_crypto_minimum, get_crypto_maximum, validate_crypto_amount, format_crypto_minimum
 
 logger = logging.getLogger(__name__)
@@ -21,9 +23,14 @@ logger = logging.getLogger(__name__)
 async def crypto_deposit_callback(client: Client, callback_query: CallbackQuery):
     """Handle crypto deposit selection."""
     try:
-        logger.info(f"Crypto deposit callback triggered: {callback_query.data}")
-        print(f"\n💳 CRYPTO DEPOSIT CALLBACK: '{callback_query.data}' from user {callback_query.from_user.id}")
         user_id = callback_query.from_user.id
+        
+        # Debug: Log which client is handling this
+        bot_info = await client.get_me()
+        logger.info(f"Crypto deposit callback from user {user_id} handled by bot {bot_info.id} (@{bot_info.username})")
+        print(f"\n💳 CRYPTO DEPOSIT CALLBACK: '{callback_query.data}' from user {user_id} via bot {bot_info.username}")
+        
+        logger.info(f"Crypto deposit callback triggered: {callback_query.data}")
         user = await user_repo.get_by_tg_id(user_id)
         lang = get_user_language(user)
         
@@ -47,7 +54,7 @@ async def crypto_deposit_callback(client: Client, callback_query: CallbackQuery)
         
         logger.info("Updating message with crypto selection keyboard")
         await callback_query.edit_message_text(text, reply_markup=keyboard)
-        await callback_query.answer()
+        # Note: edit_message_text automatically answers the callback query
         logger.info("Crypto deposit callback completed successfully")
         
     except Exception as e:
@@ -113,7 +120,7 @@ async def crypto_asset_selection_callback(client: Client, callback_query: Callba
         
         logger.info(f"Updating message with asset selection for {asset}")
         await callback_query.edit_message_text(text, reply_markup=keyboard.build())
-        await callback_query.answer()
+        # Note: edit_message_text automatically answers the callback query
         
     except Exception as e:
         logger.error(f"Error in crypto asset selection: {e}")
@@ -125,27 +132,28 @@ async def crypto_deposit_amount_handler(client: Client, message: Message):
     """Handle crypto deposit amount input."""
     try:
         user_id = message.from_user.id
-        user = await user_repo.get_by_tg_id(user_id)
-        lang = get_user_language(user)
         
-        print(f"\n💰 AMOUNT INPUT DEBUG:")
-        print(f"   User: {user.first_name if user else 'Unknown'} - ID: {user_id}")
-        print(f"   Message: '{message.text}'")
-        print(f"   User State: {await user_state_manager.get_state(user_id)}")
-        
-        # Ignore commands (messages starting with /)
+        # Early exit for commands (messages starting with /)
         if message.text.startswith('/'):
-            print(f"   ❌ COMMAND DETECTED - IGNORING")
             return
         
-        # Check if user is in crypto deposit amount input state
+        # Early check if user is in crypto deposit amount input state to avoid unnecessary processing
         is_crypto_amount_state = await user_state_manager.is_in_state(user_id, UserStates.CRYPTO_DEPOSIT_AMOUNT_INPUT)
         
         if not is_crypto_amount_state:
-            print(f"   ❌ USER NOT IN CRYPTO AMOUNT INPUT STATE - IGNORING")
+            # Only log debug info when explicitly needed for debugging
+            # Remove or comment out the following lines in production:
+            # print(f"💰 User {user_id} not in crypto amount input state - ignoring message")
             return
         
-        print(f"   ✅ PROCESSING AMOUNT INPUT")
+        # Only do full processing and logging when user is actually in the correct state
+        user = await user_repo.get_by_tg_id(user_id)
+        lang = get_user_language(user)
+        
+        print(f"\n💰 PROCESSING CRYPTO AMOUNT INPUT:")
+        print(f"   User: {user.first_name if user else 'Unknown'} - ID: {user_id}")
+        print(f"   Message: '{message.text}'")
+        print(f"   ✅ User in correct state - processing amount")
         
         # Get the asset from state data
         state_data = await user_state_manager.get_state_data(user_id)
@@ -196,7 +204,11 @@ async def crypto_deposit_amount_handler(client: Client, message: Message):
             
             keyboard = get_crypto_deposit_keyboard(user)
             
-            await message.reply_text(payment_text, reply_markup=keyboard)
+            # Check for duplicate crypto invoice messages
+            if await message_deduplicator.should_send_message(user_id, payment_text, "crypto_invoice"):
+                await message.reply_text(payment_text, reply_markup=keyboard)
+            else:
+                logger.info(f"Blocked duplicate crypto invoice message for user {user_id}")
             
         except Exception as e:
             logger.error(f"Error creating crypto deposit invoice: {e}")
@@ -256,7 +268,13 @@ async def crypto_payment_callback(client: Client, callback_query: CallbackQuery)
             
             keyboard = get_crypto_deposit_keyboard(user)
             
-            await callback_query.edit_message_text(payment_text, reply_markup=keyboard)
+            # Check for duplicate crypto payment messages
+            if await message_deduplicator.should_send_message(user_id, payment_text, "crypto_payment"):
+                await callback_query.edit_message_text(payment_text, reply_markup=keyboard)
+                # Note: edit_message_text automatically answers the callback query
+            else:
+                logger.info(f"Blocked duplicate crypto payment message for user {user_id}")
+                await callback_query.answer("Payment link already generated")
             
         except Exception as e:
             logger.error(f"Error creating crypto payment invoice: {e}")
@@ -298,6 +316,7 @@ async def crypto_balance_callback(client: Client, callback_query: CallbackQuery)
             keyboard.add_back_button("back_to_main")
             
             await callback_query.edit_message_text(balance_text, reply_markup=keyboard.build())
+            # Note: edit_message_text automatically answers the callback query
             
         except Exception as e:
             logger.error(f"Error getting crypto balance: {e}")
@@ -341,6 +360,7 @@ async def crypto_rates_callback(client: Client, callback_query: CallbackQuery):
             keyboard.add_back_button("back_to_main")
             
             await callback_query.edit_message_text(rates_text, reply_markup=keyboard.build())
+            # Note: edit_message_text automatically answers the callback query
             
         except Exception as e:
             logger.error(f"Error getting crypto rates: {e}")

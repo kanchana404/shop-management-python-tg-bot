@@ -27,6 +27,20 @@ scheduler = AsyncIOScheduler(
 )
 
 
+async def check_scheduled_messages():
+    """Check and send scheduled messages."""
+    try:
+        from app.services.scheduled_message_service import scheduled_message_service
+        
+        sent_count = await scheduled_message_service.check_and_send_pending_messages()
+        
+        if sent_count > 0:
+            logger.info(f"Processed {sent_count} scheduled messages")
+        
+    except Exception as e:
+        logger.error(f"Error checking scheduled messages: {e}")
+
+
 async def send_daily_message():
     """Send daily message to main group/channel."""
     try:
@@ -212,6 +226,14 @@ def setup_scheduled_jobs():
             check_inactive_users,
             CronTrigger(second=0),  # Every minute at :00 seconds
             id='check_inactive_users',
+            replace_existing=True
+        )
+        
+        # Scheduled messages check (every minute)
+        scheduler.add_job(
+            check_scheduled_messages,
+            CronTrigger(minute='*'),  # Every minute
+            id='scheduled_messages',
             replace_existing=True
         )
         

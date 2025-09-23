@@ -21,6 +21,7 @@ from app.i18n import translator, get_user_language
 from app.utils.rate_limiter import rate_limiter
 from app.utils.validators import validate_amount
 from app.utils.user_activity import user_activity_tracker
+from app.utils.message_deduplicator import message_deduplicator
 from app.services.balance_service import balance_service
 from app.models import UserRole
 import logging
@@ -49,6 +50,10 @@ async def start_handler(client: Client, message: Message):
     """Handle /start command."""
     try:
         user_id = message.from_user.id
+        
+        # Debug: Log which client is handling this
+        bot_info = await client.get_me()
+        logger.info(f"START command from user {user_id} handled by bot {bot_info.id} (@{bot_info.username})")
         
         # Get or create user
         user = await user_repo.get_by_tg_id(user_id)
@@ -88,7 +93,11 @@ async def start_handler(client: Client, message: Message):
         
         keyboard = get_main_menu_keyboard(user)
         
-        await message.reply_text(welcome_text, reply_markup=keyboard)
+        # Check for duplicate start messages
+        if await message_deduplicator.should_send_message(user_id, welcome_text, "start"):
+            await message.reply_text(welcome_text, reply_markup=keyboard)
+        else:
+            logger.info(f"Blocked duplicate start message for user {user_id}")
         
     except Exception as e:
         logger.error(f"Error in start handler: {e}")
@@ -186,6 +195,7 @@ async def main_menu_callback(client: Client, callback_query: CallbackQuery):
         elif data == "back_to_products":
             # Go back to products list (this will be handled by area_selection_callback)
             await callback_query.answer("Use the area selection to view products")
+            return
             
         elif data == "back_to_cities":
             # Go back to city selection
@@ -193,7 +203,8 @@ async def main_menu_callback(client: Client, callback_query: CallbackQuery):
             keyboard = get_city_selection_keyboard(user)
             await safe_edit_message(callback_query, text, keyboard)
         
-        await callback_query.answer()
+        # Note: edit_message_text calls automatically answer the callback query
+        # Only answer if no edit was performed (like early returns)
         
     except Exception as e:
         logger.error(f"Error in main menu callback: {e}")
@@ -216,7 +227,7 @@ async def city_selection_callback(client: Client, callback_query: CallbackQuery)
         text = translator.get_text("location.choose_area", lang)
         keyboard = get_area_selection_keyboard(city, user)
         await callback_query.edit_message_text(text, reply_markup=keyboard)
-        await callback_query.answer()
+        # Note: edit_message_text automatically answers the callback query
         
     except Exception as e:
         logger.error(f"Error in city selection: {e}")
@@ -268,8 +279,7 @@ async def area_selection_callback(client: Client, callback_query: CallbackQuery)
                 products_text += f"... and {len(products) - 5} more items"
             
             await callback_query.edit_message_text(products_text, reply_markup=keyboard)
-        
-        await callback_query.answer()
+        # Note: edit_message_text automatically answers the callback query
         
     except Exception as e:
         logger.error(f"Error in area selection: {e}")
@@ -709,7 +719,7 @@ async def language_callback(client: Client, callback_query: CallbackQuery):
         text = translator.get_text("language.changed", language_code)
         keyboard = get_main_menu_keyboard()
         await safe_edit_message(callback_query, text, keyboard)
-        await callback_query.answer()
+        # Note: safe_edit_message handles callback answering automatically
         
     except Exception as e:
         logger.error(f"Error in language selection: {e}")
